@@ -8,11 +8,16 @@
   </head>
   <body>
     <main class="app-shell">
+      <section class="map-stage">
+        <div id="map" aria-label="충남권 체감온도 인포그래픽"></div>
+        <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      </section>
+
       <aside class="panel">
         <header class="panel-header">
           <div>
-            <p class="eyebrow">KMA 체감온도</p>
-            <h1>충남권 온열 관제</h1>
+            <p class="eyebrow">MODEM WORKERS</p>
+            <h1>권역별 모뎀작업자</h1>
           </div>
           <button id="refreshButton" class="icon-button" type="button" title="새로고침" aria-label="새로고침">↻</button>
         </header>
@@ -41,11 +46,6 @@
           </table>
         </div>
       </aside>
-
-      <section class="map-stage">
-        <div id="map" aria-label="충남권 체감온도 인포그래픽"></div>
-        <div id="toast" class="toast" role="status" aria-live="polite"></div>
-      </section>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

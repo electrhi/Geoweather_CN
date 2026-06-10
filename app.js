@@ -148,17 +148,16 @@ function renderInfographic() {
   const workerTotal = state.rows.reduce((sum, row) => sum + Number(row.worker_count || 0), 0);
 
   infographic.innerHTML = `
-    <div class="board-grid" aria-hidden="true"></div>
-    <div class="board-river" aria-hidden="true"></div>
     <header class="board-header">
       <div>
-        <p class="eyebrow">COMMERCIAL HEAT MONITOR</p>
-        <h2>충남권 체감온도 지도</h2>
+        <p class="eyebrow">KMA APPARENT TEMPERATURE</p>
+        <h2>대전·세종·충남 체감온도 현황</h2>
+        <p class="board-subtitle">기상청 초단기실황 기반 · 온열질환 기준 감시 · 모뎀작업자 배치</p>
       </div>
-      <div class="board-kpis">
-        <div><span>최고 체감</span><strong>${hottest ? `${escapeHtml(hottest.display_name)} ${formatTemp(hottest.apparent_temp_c)}` : "--.-도"}</strong></div>
-        <div><span>온열 단계</span><strong>${activeAlerts}</strong></div>
-        <div><span>모뎀작업자</span><strong>${workerTotal}</strong></div>
+      <div class="map-summary">
+        <span>최고 ${hottest ? `${escapeHtml(hottest.display_name)} ${formatTemp(hottest.apparent_temp_c)}` : "--.-도"}</span>
+        <span>온열 ${activeAlerts}</span>
+        <span>모뎀 ${workerTotal}명</span>
       </div>
     </header>
     <div class="map-graphic">
@@ -187,7 +186,6 @@ function mapSvgHtml(rows) {
         </linearGradient>
       </defs>
       <path class="map-backplate" d="M154 144 C260 48 410 77 508 118 C636 172 762 126 854 225 C945 323 897 514 779 595 C647 688 498 624 388 651 C248 684 93 591 78 449 C64 322 55 235 154 144 Z" />
-      <path class="map-coastline" d="M118 198 C223 110 319 120 435 159 C574 206 683 137 811 241 C892 307 884 481 767 559 C626 653 532 565 381 606 C253 641 142 563 123 448 C103 329 29 274 118 198 Z" />
       ${rows.map(regionPathHtml).join("")}
       ${rows.map(regionLabelHtml).join("")}
     </svg>
@@ -218,10 +216,9 @@ function regionLabelHtml(row) {
 
   return `
     <g class="map-label ${state.selectedId === row.id ? "selected" : ""}" data-region-id="${escapeHtml(row.id)}" transform="translate(${x} ${y})">
-      <path d="M-48 -30 H48 Q58 -30 58 -20 V24 Q58 34 48 34 H-48 Q-58 34 -58 24 V-20 Q-58 -30 -48 -30 Z"></path>
-      <text class="label-name" y="-8" text-anchor="middle">${escapeHtml(row.display_name)}</text>
-      <text class="label-temp" y="12" text-anchor="middle">${formatTemp(row.apparent_temp_c)}</text>
-      <text class="label-workers" y="28" text-anchor="middle">모뎀 ${workerCount}명</text>
+      <text class="label-name" y="-12" text-anchor="middle">${escapeHtml(row.display_name)}</text>
+      <text class="label-temp" y="10" text-anchor="middle">${formatTemp(row.apparent_temp_c)}</text>
+      <text class="label-workers" y="27" text-anchor="middle">모뎀 ${workerCount}명</text>
     </g>
   `;
 }
