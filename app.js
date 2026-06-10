@@ -142,11 +142,11 @@ function renderTable() {
 
 function renderInfographic() {
   const hottest = [...state.rows]
-    .filter((row) => apparentTemp(row) !== null)
-    .sort((a, b) => Number(apparentTemp(b)) - Number(apparentTemp(a)))[0];
+    .filter((row) => displayTempValue(row) !== null)
+    .sort((a, b) => Number(displayTempValue(b)) - Number(displayTempValue(a)))[0];
   const activeAlerts = state.rows.filter((row) => HEAT_LEVELS.has(row.heat_level)).length;
   const workerTotal = state.rows.reduce((sum, row) => sum + Number(row.worker_count || 0), 0);
-  const hasWeatherData = state.rows.some((row) => apparentTemp(row) !== null);
+  const hasWeatherData = state.rows.some((row) => displayTempValue(row) !== null);
 
   infographic.innerHTML = `
     <header class="board-header">
@@ -164,7 +164,7 @@ function renderInfographic() {
     <div class="map-graphic">
       ${mapSvgHtml(state.rows)}
     </div>
-    ${hasWeatherData ? "" : `<div class="weather-empty">KMA_SERVICE_KEY 설정 후 첫 갱신이 완료되면 체감온도가 표시됩니다.</div>`}
+    ${hasWeatherData ? "" : `<div class="weather-empty">KMA_SERVICE_KEY 설정 후 첫 갱신이 완료되면 현재 온도와 체감온도가 표시됩니다.</div>`}
     <div class="board-legend">
       ${Object.entries(levelCopy).map(([level, label]) => `<span><i class="legend-dot level-${level}"></i>${label}</span>`).join("")}
     </div>
@@ -317,8 +317,22 @@ function formatTemp(value) {
 }
 
 function formatRegionTemp(row) {
-  const value = apparentTemp(row);
-  return value === null ? "갱신대기" : formatTemp(value);
+  const value = displayTempValue(row);
+  if (value === null) return "갱신대기";
+
+  return HEAT_LEVELS.has(row.heat_level) ? `체감 ${formatTemp(value)}` : `현재 ${formatTemp(value)}`;
+}
+
+function displayTempValue(row) {
+  if (HEAT_LEVELS.has(row.heat_level)) {
+    return apparentTemp(row);
+  }
+
+  if (row.temperature_c !== null && row.temperature_c !== undefined) {
+    return Number(row.temperature_c);
+  }
+
+  return apparentTemp(row);
 }
 
 function apparentTemp(row) {
