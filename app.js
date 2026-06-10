@@ -18,27 +18,9 @@ const toast = document.querySelector("#toast");
 const refreshButton = document.querySelector("#refreshButton");
 const infographic = document.querySelector("#map");
 
-const regionLayout = {
-  taean: [9, 37],
-  seosan: [20, 25],
-  dangjin: [31, 15],
-  hongseong: [30, 41],
-  yesan: [43, 31],
-  asan: [53, 18],
-  cheonan: [66, 15],
-  boryeong: [21, 58],
-  cheongyang: [39, 56],
-  gongju: [55, 48],
-  sejong: [66, 39],
-  "daedeok-yuseong": [73, 54],
-  "west-daejeon": [63, 61],
-  "daejeon-central": [77, 66],
-  buyeo: [44, 70],
-  nonsan: [58, 78],
-  gyeryong: [70, 76],
-  geumsan: [83, 82],
-  seocheon: [30, 84],
-};
+const SVG_WIDTH = 1000;
+const SVG_HEIGHT = 720;
+const MAP_PADDING = 58;
 
 const levelCopy = {
   normal: "정상",
@@ -158,37 +140,87 @@ function renderInfographic() {
         <div><span>작업자</span><strong>${workerTotal}</strong></div>
       </div>
     </header>
-    <div class="region-network">
-      ${state.rows.map(regionNodeHtml).join("")}
+    <div class="map-graphic">
+      ${mapSvgHtml(state.rows)}
     </div>
     <div class="board-legend">
       ${Object.entries(levelCopy).map(([level, label]) => `<span><i class="legend-dot level-${level}"></i>${label}</span>`).join("")}
     </div>
   `;
 
-  infographic.querySelectorAll(".region-node").forEach((node) => {
+  infographic.querySelectorAll(".map-region").forEach((node) => {
     node.addEventListener("click", () => focusRegion(node.dataset.regionId));
   });
 }
 
-function regionNodeHtml(row) {
-  const [x, y] = regionLayout[row.id] || [50, 50];
-  const level = row.heat_level || "normal";
-  const workerCount = Number(row.worker_count || 0);
-  const temp = formatTemp(row.apparent_temp_c);
+function mapSvgHtml(rows) {
+  const projection = createProjection(rows);
 
   return `
-    <button
-      class="region-node level-ring-${level} ${state.selectedId === row.id ? "selected" : ""}"
-      type="button"
+    <svg class="infographic-map" viewBox="0 0 ${SVG_WIDTH} ${SVG_HEIGHT}" role="img" aria-label="충남권 권역별 체감온도 지도">
+      <defs>
+        <filter id="regionShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#1f2b35" flood-opacity="0.16" />
+        </filter>
+        <linearGradient id="seaGradient" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stop-color="#dff3f4" />
+          <stop offset="100%" stop-color="#ecf2fb" />
+        </linearGradient>
+      </defs>
+      <path class="map-backplate" d="M154 144 C260 48 410 77 508 118 C636 172 762 126 854 225 C945 323 897 514 779 595 C647 688 498 624 388 651 C248 684 93 591 78 449 C64 322 55 235 154 144 Z" />
+      <path class="map-coastline" d="M118 198 C223 110 319 120 435 159 C574 206 683 137 811 241 C892 307 884 481 767 559 C626 653 532 565 381 606 C253 641 142 563 123 448 C103 329 29 274 118 198 Z" />
+      ${rows.map((row) => regionPathHtml(row, projection)).join("")}
+      ${rows.map((row) => regionLabelHtml(row, projection)).join("")}
+    </svg>
+  `;
+}
+
+function createProjection(rows) {
+  const points = rows.flatMap((row) => row.polygon || []);
+  const lats = points.map(([lat]) => Number(lat));
+  const lngs = points.map(([, lng]) => Number(lng));
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  const width = SVG_WIDTH - MAP_PADDING * 2;
+  const height = SVG_HEIGHT - MAP_PADDING * 2;
+
+  return ([lat, lng]) => {
+    const x = MAP_PADDING + ((Number(lng) - minLng) / (maxLng - minLng)) * width;
+    const y = MAP_PADDING + ((maxLat - Number(lat)) / (maxLat - minLat)) * height;
+    return [Math.round(x), Math.round(y)];
+  };
+}
+
+function regionPathHtml(row, projection) {
+  const level = row.heat_level || "normal";
+  const points = (row.polygon || []).map((point) => projection(point).join(",")).join(" ");
+  const selected = state.selectedId === row.id ? "selected" : "";
+
+  return `
+    <polygon
+      class="map-region level-fill-${level} ${selected}"
       data-region-id="${escapeHtml(row.id)}"
-      style="--x:${x}; --y:${y};"
-      aria-label="${escapeHtml(row.display_name)} ${temp}"
-    >
-      <span class="node-title">${escapeHtml(row.display_name)}</span>
-      <strong>${temp}</strong>
-      <small>${workerCount}명</small>
-    </button>
+      points="${points}"
+      tabindex="0"
+      role="button"
+      aria-label="${escapeHtml(row.display_name)} ${formatTemp(row.apparent_temp_c)}"
+    />
+  `;
+}
+
+function regionLabelHtml(row, projection) {
+  const [x, y] = projection([row.center_lat, row.center_lng]);
+  const workerCount = Number(row.worker_count || 0);
+
+  return `
+    <g class="map-label ${state.selectedId === row.id ? "selected" : ""}" data-region-id="${escapeHtml(row.id)}" transform="translate(${x} ${y})">
+      <rect x="-54" y="-31" width="108" height="62" rx="8"></rect>
+      <text class="label-name" y="-8" text-anchor="middle">${escapeHtml(row.display_name)}</text>
+      <text class="label-temp" y="12" text-anchor="middle">${formatTemp(row.apparent_temp_c)}</text>
+      <text class="label-workers" y="27" text-anchor="middle">작업자 ${workerCount}명</text>
+    </g>
   `;
 }
 

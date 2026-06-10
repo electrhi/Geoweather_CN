@@ -324,69 +324,100 @@ tr:hover {
   font-size: 16px;
 }
 
-.region-network {
+.map-graphic {
   position: absolute;
   inset: 100px 22px 72px;
 }
 
-.region-node {
-  position: absolute;
-  left: calc(var(--x) * 1%);
-  top: calc(var(--y) * 1%);
-  display: grid;
-  width: clamp(94px, 8.2vw, 132px);
-  min-height: 78px;
-  transform: translate(-50%, -50%);
-  place-items: center;
-  gap: 3px;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  padding: 9px 8px;
-  background: rgba(255, 255, 255, 0.91);
-  color: var(--ink);
-  box-shadow: 0 14px 34px rgba(21, 26, 31, 0.15);
+.infographic-map {
+  width: 100%;
+  height: 100%;
+}
+
+.map-backplate {
+  fill: url("#seaGradient");
+}
+
+.map-coastline {
+  fill: rgba(255, 255, 255, 0.68);
+  stroke: rgba(46, 74, 92, 0.18);
+  stroke-width: 2;
+}
+
+.map-region {
+  filter: url("#regionShadow");
+  stroke: rgba(255, 255, 255, 0.96);
+  stroke-width: 5;
+  stroke-linejoin: round;
   cursor: pointer;
+  transition: filter 160ms ease, opacity 160ms ease, stroke-width 160ms ease;
 }
 
-.region-node:hover,
-.region-node.selected {
-  z-index: 5;
-  transform: translate(-50%, -50%) scale(1.05);
+.map-region:hover,
+.map-region.selected {
+  filter: url("#regionShadow") brightness(1.05) saturate(1.18);
+  stroke: #17222b;
+  stroke-width: 7;
 }
 
-.node-title {
-  font-size: 13px;
+.level-fill-normal {
+  fill: rgba(46, 139, 103, 0.78);
+}
+
+.level-fill-interest {
+  fill: rgba(197, 148, 25, 0.84);
+}
+
+.level-fill-caution {
+  fill: rgba(213, 105, 43, 0.84);
+}
+
+.level-fill-warning {
+  fill: rgba(200, 62, 53, 0.84);
+}
+
+.level-fill-danger {
+  fill: rgba(120, 80, 184, 0.86);
+}
+
+.map-label {
+  pointer-events: none;
+}
+
+.map-label rect {
+  fill: rgba(255, 255, 255, 0.86);
+  stroke: rgba(33, 49, 61, 0.14);
+  stroke-width: 1;
+}
+
+.map-label.selected rect {
+  fill: rgba(21, 26, 31, 0.9);
+}
+
+.map-label text {
+  font-family: "Segoe UI", "Noto Sans KR", system-ui, sans-serif;
+}
+
+.label-name {
+  fill: var(--ink);
+  font-size: 15px;
   font-weight: 900;
 }
 
-.region-node strong {
-  font-size: 19px;
+.label-temp {
+  fill: #14202a;
+  font-size: 17px;
+  font-weight: 900;
 }
 
-.region-node small {
-  color: var(--muted);
-  font-size: 12px;
+.label-workers {
+  fill: var(--muted);
+  font-size: 11px;
   font-weight: 800;
 }
 
-.level-ring-normal {
-  border-color: rgba(46, 139, 103, 0.55);
-}
-
-.level-ring-interest {
-  border-color: var(--yellow);
-}
-
-.level-ring-caution {
-  border-color: var(--orange);
-}
-
-.level-ring-warning {
-  border-color: var(--red);
-}
-
-.level-ring-danger {
-  border-color: var(--violet);
+.map-label.selected text {
+  fill: #fff;
 }
 
 .board-legend {
@@ -471,7 +502,7 @@ tr:hover {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .region-network {
+  .map-graphic {
     inset: 180px 18px 70px;
   }
 }
@@ -490,8 +521,7 @@ tr:hover {
     width: 24%;
   }
 
-  .region-node {
-    width: 88px;
-    min-height: 70px;
+  .map-label rect {
+    width: 96px;
   }
 }
