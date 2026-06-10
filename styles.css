@@ -220,6 +220,20 @@ h2 {
   font-weight: 800;
 }
 
+.weather-empty {
+  position: absolute;
+  left: 38px;
+  bottom: 18px;
+  z-index: 2;
+  max-width: min(520px, calc(100vw - 76px));
+  border-left: 3px solid var(--blue-4);
+  padding: 7px 0 7px 12px;
+  color: var(--blue-4);
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .legend-dot {
   width: 10px;
   height: 10px;
@@ -517,6 +531,14 @@ tr:hover {
     right: 10px;
     bottom: 8px;
     gap: 6px;
+  }
+
+  .weather-empty {
+    left: 10px;
+    right: 10px;
+    bottom: 30px;
+    max-width: none;
+    font-size: 11px;
   }
 
   .board-legend span {

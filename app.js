@@ -132,7 +132,7 @@ function renderTable() {
         <strong class="region-name">${escapeHtml(row.display_name)}</strong>
         <span class="region-province">${escapeHtml(row.province)}</span>
       </td>
-      <td><span class="temp level-${row.heat_level || "normal"}">${formatTemp(row.apparent_temp_c)}</span></td>
+      <td><span class="temp level-${row.heat_level || "normal"}">${formatRegionTemp(row)}</span></td>
       <td>${workerListHtml(row.worker_ids, row.worker_count)}</td>
     `;
     tr.addEventListener("click", () => focusRegion(row.id));
@@ -142,10 +142,11 @@ function renderTable() {
 
 function renderInfographic() {
   const hottest = [...state.rows]
-    .filter((row) => row.apparent_temp_c !== null && row.apparent_temp_c !== undefined)
-    .sort((a, b) => Number(b.apparent_temp_c) - Number(a.apparent_temp_c))[0];
+    .filter((row) => apparentTemp(row) !== null)
+    .sort((a, b) => Number(apparentTemp(b)) - Number(apparentTemp(a)))[0];
   const activeAlerts = state.rows.filter((row) => HEAT_LEVELS.has(row.heat_level)).length;
   const workerTotal = state.rows.reduce((sum, row) => sum + Number(row.worker_count || 0), 0);
+  const hasWeatherData = state.rows.some((row) => apparentTemp(row) !== null);
 
   infographic.innerHTML = `
     <header class="board-header">
@@ -155,7 +156,7 @@ function renderInfographic() {
         <p class="board-subtitle">기상청 초단기실황 기반 · 온열질환 기준 감시 · 모뎀작업자 배치</p>
       </div>
       <div class="map-summary">
-        <span>최고 ${hottest ? `${escapeHtml(hottest.display_name)} ${formatTemp(hottest.apparent_temp_c)}` : "--.-도"}</span>
+        <span>최고 ${hottest ? `${escapeHtml(hottest.display_name)} ${formatRegionTemp(hottest)}` : "기상청 대기"}</span>
         <span>온열 ${activeAlerts}</span>
         <span>모뎀 ${workerTotal}명</span>
       </div>
@@ -163,6 +164,7 @@ function renderInfographic() {
     <div class="map-graphic">
       ${mapSvgHtml(state.rows)}
     </div>
+    ${hasWeatherData ? "" : `<div class="weather-empty">KMA_SERVICE_KEY 설정 후 첫 갱신이 완료되면 체감온도가 표시됩니다.</div>`}
     <div class="board-legend">
       ${Object.entries(levelCopy).map(([level, label]) => `<span><i class="legend-dot level-${level}"></i>${label}</span>`).join("")}
     </div>
@@ -205,7 +207,7 @@ function regionPathHtml(row) {
       points="${points}"
       tabindex="0"
       role="button"
-      aria-label="${escapeHtml(row.display_name)} ${formatTemp(row.apparent_temp_c)}"
+      aria-label="${escapeHtml(row.display_name)} ${formatRegionTemp(row)}"
     />
   `;
 }
@@ -217,7 +219,7 @@ function regionLabelHtml(row) {
   return `
     <g class="map-label ${state.selectedId === row.id ? "selected" : ""}" data-region-id="${escapeHtml(row.id)}" transform="translate(${x} ${y})">
       <text class="label-name" y="-12" text-anchor="middle">${escapeHtml(row.display_name)}</text>
-      <text class="label-temp" y="10" text-anchor="middle">${formatTemp(row.apparent_temp_c)}</text>
+      <text class="label-temp" y="10" text-anchor="middle">${formatRegionTemp(row)}</text>
       <text class="label-workers" y="27" text-anchor="middle">모뎀 ${workerCount}명</text>
     </g>
   `;
@@ -232,7 +234,7 @@ function focusRegion(regionId) {
   renderInfographic();
   const targetRow = tableBody.querySelector(`[data-region-id="${CSS.escape(regionId)}"]`);
   targetRow?.scrollIntoView({ block: "nearest" });
-  showToast(`${row.display_name}: ${formatTemp(row.apparent_temp_c)} / 작업자 ${row.worker_count || 0}명`);
+  showToast(`${row.display_name}: ${formatRegionTemp(row)} / 모뎀 ${row.worker_count || 0}명`);
 }
 
 function updateSummary() {
@@ -252,7 +254,7 @@ function triggerHeatAlarms() {
   if (hotRows.length === 0) return;
 
   const top = hotRows[0];
-  notify("온열질환 기준 도달", `${top.display_name} ${levelLabel(top.heat_level)} ${formatTemp(top.apparent_temp_c)}`);
+  notify("온열질환 기준 도달", `${top.display_name} ${levelLabel(top.heat_level)} ${formatRegionTemp(top)}`);
 }
 
 async function notify(title, body) {
@@ -312,6 +314,27 @@ function showToast(message) {
 
 function formatTemp(value) {
   return value === null || value === undefined ? "--.-도" : `${Number(value).toFixed(1)}도`;
+}
+
+function formatRegionTemp(row) {
+  const value = apparentTemp(row);
+  return value === null ? "갱신대기" : formatTemp(value);
+}
+
+function apparentTemp(row) {
+  if (row.apparent_temp_c !== null && row.apparent_temp_c !== undefined) {
+    return Number(row.apparent_temp_c);
+  }
+
+  if (row.temperature_c === null || row.temperature_c === undefined) return null;
+  if (row.humidity_pct === null || row.humidity_pct === undefined) return null;
+  if (row.wind_ms === null || row.wind_ms === undefined) return null;
+
+  const temp = Number(row.temperature_c);
+  const humidity = Number(row.humidity_pct);
+  const wind = Number(row.wind_ms);
+  const vaporPressure = (humidity / 100) * 6.105 * Math.exp((17.27 * temp) / (237.7 + temp));
+  return Math.round((temp + 0.33 * vaporPressure - 0.7 * wind - 4.0) * 10) / 10;
 }
 
 function formatTime(value) {
