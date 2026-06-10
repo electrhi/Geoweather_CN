@@ -4,12 +4,6 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>충남권 체감온도 관제</title>
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIINfQWoZbcw2ou48n4wPkaFhYFAzXdZjWs="
-      crossorigin=""
-    />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -22,12 +16,6 @@
           </div>
           <button id="refreshButton" class="icon-button" type="button" title="새로고침" aria-label="새로고침">↻</button>
         </header>
-
-        <section class="operator-bar" aria-label="작업자 설정">
-          <label for="userIdInput">작업자</label>
-          <input id="userIdInput" type="text" autocomplete="username" placeholder="user_id" />
-          <button id="saveUserButton" type="button">저장</button>
-        </section>
 
         <section class="status-strip" aria-live="polite">
           <div>
@@ -55,18 +43,12 @@
       </aside>
 
       <section class="map-stage">
-        <div id="map" aria-label="충남권 체감온도 지도"></div>
+        <div id="map" aria-label="충남권 체감온도 인포그래픽"></div>
         <div id="toast" class="toast" role="status" aria-live="polite"></div>
       </section>
     </main>
 
-    <script
-      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-      crossorigin=""
-    ></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./app.js"></script>
   </body>
 </html>
-

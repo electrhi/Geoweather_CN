@@ -6,8 +6,6 @@ const HEAT_LEVELS = new Set(["interest", "caution", "warning", "danger"]);
 const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const state = {
   rows: [],
-  polygons: new Map(),
-  labels: new Map(),
   selectedId: null,
   audioReady: false,
   pendingVisitAlarm: false,
@@ -17,33 +15,42 @@ const tableBody = document.querySelector("#regionTable");
 const lastUpdated = document.querySelector("#lastUpdated");
 const alertCount = document.querySelector("#alertCount");
 const toast = document.querySelector("#toast");
-const userIdInput = document.querySelector("#userIdInput");
 const refreshButton = document.querySelector("#refreshButton");
-const saveUserButton = document.querySelector("#saveUserButton");
+const infographic = document.querySelector("#map");
 
-const map = L.map("map", {
-  zoomControl: false,
-  minZoom: 8,
-}).setView([36.52, 126.9], 9);
+const regionLayout = {
+  taean: [9, 37],
+  seosan: [20, 25],
+  dangjin: [31, 15],
+  hongseong: [30, 41],
+  yesan: [43, 31],
+  asan: [53, 18],
+  cheonan: [66, 15],
+  boryeong: [21, 58],
+  cheongyang: [39, 56],
+  gongju: [55, 48],
+  sejong: [66, 39],
+  "daedeok-yuseong": [73, 54],
+  "west-daejeon": [63, 61],
+  "daejeon-central": [77, 66],
+  buyeo: [44, 70],
+  nonsan: [58, 78],
+  gyeryong: [70, 76],
+  geumsan: [83, 82],
+  seocheon: [30, 84],
+};
 
-L.control.zoom({ position: "topright" }).addTo(map);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 18,
-  attribution: "&copy; OpenStreetMap",
-}).addTo(map);
-
-const palette = {
-  normal: "#2f7d59",
-  interest: "#c99a16",
-  caution: "#d66a28",
-  warning: "#c84034",
-  danger: "#7b4fb3",
+const levelCopy = {
+  normal: "정상",
+  interest: "관심",
+  caution: "주의",
+  warning: "경고",
+  danger: "위험",
 };
 
 init();
 
 async function init() {
-  userIdInput.value = localStorage.getItem("cnWeatherUserId") || "";
   bindEvents();
   await loadDashboard();
   await recordVisit();
@@ -54,11 +61,6 @@ async function init() {
 function bindEvents() {
   refreshButton.addEventListener("click", async () => {
     await refreshWeather(true);
-  });
-
-  saveUserButton.addEventListener("click", () => {
-    localStorage.setItem("cnWeatherUserId", userIdInput.value.trim());
-    showToast("작업자 정보가 저장됐습니다.");
   });
 
   window.addEventListener("pointerdown", () => {
@@ -83,7 +85,7 @@ async function loadDashboard() {
 
   state.rows = data || [];
   renderTable();
-  renderMap();
+  renderInfographic();
   updateSummary();
   triggerHeatAlarms();
 }
@@ -106,128 +108,100 @@ async function refreshWeather(forceToast = false) {
 }
 
 async function recordVisit() {
-  const userId = userIdInput.value.trim() || null;
   await client.from("cn_weather_visit_events").insert({
-    user_id: userId,
+    user_id: null,
     user_agent: navigator.userAgent,
   });
 
   await client.from("cn_weather_alert_events").insert({
     alert_type: "visit",
-    user_id: userId,
-    message: userId ? `${userId} 접속` : "익명 접속",
+    user_id: null,
+    message: "사이트 접속",
   });
-
-  notify("접속 알림", userId ? `${userId} 작업자가 접속했습니다.` : "사이트 접속이 감지됐습니다.");
 }
 
 function renderTable() {
   tableBody.replaceChildren(...state.rows.map((row) => {
     const tr = document.createElement("tr");
-    const assigned = row.user_id || "-";
     tr.dataset.regionId = row.id;
     tr.innerHTML = `
-      <td>${escapeHtml(row.display_name)}</td>
+      <td>
+        <strong class="region-name">${escapeHtml(row.display_name)}</strong>
+        <span class="region-province">${escapeHtml(row.province)}</span>
+      </td>
       <td><span class="temp level-${row.heat_level || "normal"}">${formatTemp(row.apparent_temp_c)}</span></td>
-      <td><button class="assign-button" type="button" title="현재 작업자 배정">${escapeHtml(assigned)}</button></td>
+      <td>${workerListHtml(row.worker_ids, row.worker_count)}</td>
     `;
     tr.addEventListener("click", () => focusRegion(row.id));
-    tr.querySelector(".assign-button").addEventListener("click", async (event) => {
-      event.stopPropagation();
-      await assignCurrentUser(row.id);
-    });
     return tr;
   }));
 }
 
-async function assignCurrentUser(regionId) {
-  const userId = userIdInput.value.trim();
+function renderInfographic() {
+  const hottest = [...state.rows]
+    .filter((row) => row.apparent_temp_c !== null && row.apparent_temp_c !== undefined)
+    .sort((a, b) => Number(b.apparent_temp_c) - Number(a.apparent_temp_c))[0];
+  const activeAlerts = state.rows.filter((row) => HEAT_LEVELS.has(row.heat_level)).length;
+  const workerTotal = state.rows.reduce((sum, row) => sum + Number(row.worker_count || 0), 0);
 
-  if (!userId) {
-    showToast("작업자 user_id를 먼저 입력해 주세요.");
-    userIdInput.focus();
-    return;
-  }
+  infographic.innerHTML = `
+    <div class="board-grid" aria-hidden="true"></div>
+    <div class="board-river" aria-hidden="true"></div>
+    <header class="board-header">
+      <div>
+        <p class="eyebrow">COMMERCIAL HEAT MONITOR</p>
+        <h2>충남권 체감온도 보드</h2>
+      </div>
+      <div class="board-kpis">
+        <div><span>최고 체감</span><strong>${hottest ? `${escapeHtml(hottest.display_name)} ${formatTemp(hottest.apparent_temp_c)}` : "--.-도"}</strong></div>
+        <div><span>온열 단계</span><strong>${activeAlerts}</strong></div>
+        <div><span>작업자</span><strong>${workerTotal}</strong></div>
+      </div>
+    </header>
+    <div class="region-network">
+      ${state.rows.map(regionNodeHtml).join("")}
+    </div>
+    <div class="board-legend">
+      ${Object.entries(levelCopy).map(([level, label]) => `<span><i class="legend-dot level-${level}"></i>${label}</span>`).join("")}
+    </div>
+  `;
 
-  localStorage.setItem("cnWeatherUserId", userId);
-
-  const { error } = await client
-    .from("cn_weather_assignments")
-    .upsert({ region_id: regionId, user_id: userId, updated_at: new Date().toISOString() });
-
-  if (error) {
-    showToast(`작업자 배정 실패: ${error.message}`);
-    return;
-  }
-
-  showToast("작업자가 배정됐습니다.");
-  await loadDashboard();
+  infographic.querySelectorAll(".region-node").forEach((node) => {
+    node.addEventListener("click", () => focusRegion(node.dataset.regionId));
+  });
 }
 
-function renderMap() {
-  for (const layer of state.polygons.values()) layer.remove();
-  for (const marker of state.labels.values()) marker.remove();
-  state.polygons.clear();
-  state.labels.clear();
+function regionNodeHtml(row) {
+  const [x, y] = regionLayout[row.id] || [50, 50];
+  const level = row.heat_level || "normal";
+  const workerCount = Number(row.worker_count || 0);
+  const temp = formatTemp(row.apparent_temp_c);
 
-  const bounds = [];
-
-  for (const row of state.rows) {
-    const color = palette[row.heat_level] || palette.normal;
-    const latLngs = (row.polygon || []).map(([lat, lng]) => [lat, lng]);
-    bounds.push(...latLngs);
-
-    const polygon = L.polygon(latLngs, {
-      color,
-      fillColor: color,
-      fillOpacity: 0.34,
-      weight: 2,
-    }).addTo(map);
-
-    polygon.bindPopup(popupHtml(row));
-    polygon.on("click", () => focusRegion(row.id));
-    state.polygons.set(row.id, polygon);
-
-    const label = L.marker([row.center_lat, row.center_lng], {
-      icon: L.divIcon({
-        className: "region-label",
-        html: `<div><strong>${escapeHtml(row.display_name)}</strong><span>${formatTemp(row.apparent_temp_c)}</span></div>`,
-        iconSize: [96, 48],
-        iconAnchor: [48, 24],
-      }),
-      interactive: true,
-    }).addTo(map);
-
-    label.on("click", () => focusRegion(row.id));
-    state.labels.set(row.id, label);
-  }
-
-  if (bounds.length > 0) {
-    map.fitBounds(bounds, { padding: [28, 28] });
-  }
+  return `
+    <button
+      class="region-node level-ring-${level} ${state.selectedId === row.id ? "selected" : ""}"
+      type="button"
+      data-region-id="${escapeHtml(row.id)}"
+      style="--x:${x}; --y:${y};"
+      aria-label="${escapeHtml(row.display_name)} ${temp}"
+    >
+      <span class="node-title">${escapeHtml(row.display_name)}</span>
+      <strong>${temp}</strong>
+      <small>${workerCount}명</small>
+    </button>
+  `;
 }
 
 function focusRegion(regionId) {
-  const row = state.rows.find((item) => item.id === regionId);
-  const polygon = state.polygons.get(regionId);
-
-  if (!row || !polygon) return;
-
   state.selectedId = regionId;
-  map.fitBounds(polygon.getBounds(), { maxZoom: 11, padding: [42, 42] });
-  polygon.openPopup();
-}
+  const row = state.rows.find((item) => item.id === regionId);
+  if (!row) return;
 
-function popupHtml(row) {
-  return `
-    <h2 class="popup-title">${escapeHtml(row.display_name)}</h2>
-    <dl class="popup-meta">
-      <div>체감온도: <strong>${formatTemp(row.apparent_temp_c)}</strong></div>
-      <div>상태: <strong>${escapeHtml(levelLabel(row.heat_level))}</strong></div>
-      <div>작업자: <strong>${escapeHtml(row.user_id || "-")}</strong></div>
-      <div>관측: <strong>${formatTime(row.observed_at)}</strong></div>
-    </dl>
-  `;
+  renderTable();
+  renderInfographic();
+  const targetRow = tableBody.querySelector(`[data-region-id="${CSS.escape(regionId)}"]`);
+  targetRow?.scrollIntoView({ block: "nearest" });
+  showToast(`${row.display_name}: ${formatTemp(row.apparent_temp_c)} / 작업자 ${row.worker_count || 0}명`);
 }
 
 function updateSummary() {
@@ -286,6 +260,18 @@ function playAlarm() {
   oscillator.stop(context.currentTime + 0.45);
 }
 
+function workerListHtml(workerIds = [], workerCount = 0) {
+  if (!workerIds || workerIds.length === 0) {
+    return `<span class="empty-workers">-</span>`;
+  }
+
+  return `
+    <div class="worker-stack" aria-label="작업자 ${Number(workerCount || workerIds.length)}명">
+      ${workerIds.map((worker) => `<span>${escapeHtml(worker)}</span>`).join("")}
+    </div>
+  `;
+}
+
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add("show");
@@ -308,13 +294,7 @@ function formatTime(value) {
 }
 
 function levelLabel(level) {
-  return {
-    normal: "정상",
-    interest: "관심",
-    caution: "주의",
-    warning: "경고",
-    danger: "위험",
-  }[level] || "정상";
+  return levelCopy[level] || "정상";
 }
 
 function escapeHtml(value) {

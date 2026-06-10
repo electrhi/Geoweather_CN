@@ -6,8 +6,8 @@
 
 - 대전 동구/중구는 `대전직할`, 서구는 `서대전`, 대덕구/유성구는 `대덕유성`으로 묶습니다.
 - 세종과 충남은 시/군 단위로 표시합니다.
-- 지도에는 권역명과 기상청 기준 체감온도를 함께 표시합니다.
-- 왼쪽 표에는 지명, 체감온도, 작업자 `user_id`를 표시합니다.
+- 실제 지도 타일 대신 상업용 관제 화면에 맞춘 인포그래픽 보드로 권역을 표시합니다.
+- 왼쪽 표에는 지명, 체감온도, `meters` 데이터에서 자동 집계한 작업자 목록을 표시합니다.
 - Supabase Edge Function이 기상청 초단기실황 값을 가져와 30분마다 갱신 요청을 받습니다.
 - 온열질환 기준 단계에 도달하거나 사이트 접속이 발생하면 브라우저 알림과 소리 알람을 보냅니다.
 - GitHub Actions 예약 실행으로 개인 컴퓨터가 꺼져 있어도 기상청 값을 확인합니다.
@@ -21,6 +21,7 @@
 - `supabase/migrations/20260610000000_cn_weather_schema.sql`: 테이블, 뷰, RLS, 권역 초기 데이터
 - `supabase/migrations/20260610001000_cn_weather_security_tightening.sql`: RLS 정책과 view 보안 옵션 보강
 - `supabase/migrations/20260610002000_cn_weather_daily_alert_key.sql`: 하루 1회 알림 중복 방지 키
+- `supabase/migrations/20260610003000_cn_weather_workers_from_meters.sql`: `meters.address`와 `meters.user_id` 기반 권역별 작업자 집계 view
 - `supabase/functions/cn-weather-refresh/index.ts`: 기상청 업데이트 Edge Function
 - `.github/workflows/pages.yml`: GitHub Pages 무료 정적 사이트 배포
 - `.github/workflows/daily-weather-alert.yml`: 기상청 체감온도 예약 확인
