@@ -69,7 +69,7 @@ Deno.serve(async (req: Request) => {
   const results = [];
 
   for (const region of regions as Region[]) {
-    const reading = await fetchKmaReading(kmaServiceKey, base.baseDate, base.baseTime, region);
+    const reading = await fetchKmaReading(normalizeKmaServiceKey(kmaServiceKey), base.baseDate, base.baseTime, region);
 
     if (!reading.ok) {
       results.push({ region_id: region.id, ok: false, error: reading.error });
@@ -155,7 +155,18 @@ async function fetchKmaReading(key: string, baseDate: string, baseTime: string, 
 
   try {
     const response = await fetch(url);
-    const data = await response.json();
+    const responseText = await response.text();
+    let data;
+
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      return {
+        ok: false as const,
+        error: responseText.slice(0, 120) || `kma_http_${response.status}`,
+      };
+    }
+
     const items = data?.response?.body?.items?.item as KmaItem[] | undefined;
 
     if (!response.ok || !Array.isArray(items)) {
@@ -182,6 +193,14 @@ async function fetchKmaReading(key: string, baseDate: string, baseTime: string, 
     };
   } catch (error) {
     return { ok: false as const, error: error instanceof Error ? error.message : "kma_fetch_failed" };
+  }
+}
+
+function normalizeKmaServiceKey(key: string) {
+  try {
+    return decodeURIComponent(key);
+  } catch {
+    return key;
   }
 }
 
