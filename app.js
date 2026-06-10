@@ -20,7 +20,28 @@ const infographic = document.querySelector("#map");
 
 const SVG_WIDTH = 1000;
 const SVG_HEIGHT = 720;
-const MAP_PADDING = 58;
+
+const REGION_SHAPES = {
+  taean: { label: [135, 280], points: "70,225 165,175 220,230 185,318 92,338 46,286" },
+  seosan: { label: [270, 235], points: "184,164 314,143 360,229 286,308 185,318 220,230" },
+  dangjin: { label: [416, 164], points: "312,98 448,92 492,176 360,229 314,143" },
+  hongseong: { label: [250, 385], points: "185,318 286,308 348,386 286,474 169,447 128,361" },
+  yesan: { label: [434, 297], points: "360,229 492,176 564,260 498,366 348,386 286,308" },
+  asan: { label: [586, 177], points: "492,104 617,94 660,190 564,260 492,176" },
+  cheonan: { label: [735, 178], points: "660,104 807,105 865,196 760,276 660,190" },
+  boryeong: { label: [196, 520], points: "126,457 286,474 316,576 210,647 92,596" },
+  cheongyang: { label: [388, 475], points: "348,386 498,366 515,484 421,572 316,576 286,474" },
+  gongju: { label: [581, 405], points: "564,260 681,304 690,432 600,526 515,484 498,366" },
+  sejong: { label: [720, 318], points: "660,190 760,276 790,365 690,432 681,304 564,260" },
+  "daedeok-yuseong": { label: [772, 445], points: "790,365 872,410 852,518 746,536 690,432" },
+  "west-daejeon": { label: [672, 526], points: "600,526 690,432 746,536 684,628 590,602" },
+  "daejeon-central": { label: [815, 580], points: "746,536 852,518 905,606 832,682 684,628" },
+  buyeo: { label: [432, 610], points: "316,576 421,572 590,602 548,696 390,692 210,647" },
+  nonsan: { label: [617, 655], points: "590,602 684,628 721,704 548,696" },
+  gyeryong: { label: [744, 656], points: "684,628 832,682 816,718 721,704" },
+  geumsan: { label: [882, 668], points: "832,682 905,606 958,660 918,716 816,718" },
+  seocheon: { label: [292, 674], points: "210,647 390,692 332,736 190,724 92,596" },
+};
 
 const levelCopy = {
   normal: "정상",
@@ -132,12 +153,12 @@ function renderInfographic() {
     <header class="board-header">
       <div>
         <p class="eyebrow">COMMERCIAL HEAT MONITOR</p>
-        <h2>충남권 체감온도 보드</h2>
+        <h2>충남권 체감온도 지도</h2>
       </div>
       <div class="board-kpis">
         <div><span>최고 체감</span><strong>${hottest ? `${escapeHtml(hottest.display_name)} ${formatTemp(hottest.apparent_temp_c)}` : "--.-도"}</strong></div>
         <div><span>온열 단계</span><strong>${activeAlerts}</strong></div>
-        <div><span>작업자</span><strong>${workerTotal}</strong></div>
+        <div><span>모뎀작업자</span><strong>${workerTotal}</strong></div>
       </div>
     </header>
     <div class="map-graphic">
@@ -154,8 +175,6 @@ function renderInfographic() {
 }
 
 function mapSvgHtml(rows) {
-  const projection = createProjection(rows);
-
   return `
     <svg class="infographic-map" viewBox="0 0 ${SVG_WIDTH} ${SVG_HEIGHT}" role="img" aria-label="충남권 권역별 체감온도 지도">
       <defs>
@@ -169,33 +188,16 @@ function mapSvgHtml(rows) {
       </defs>
       <path class="map-backplate" d="M154 144 C260 48 410 77 508 118 C636 172 762 126 854 225 C945 323 897 514 779 595 C647 688 498 624 388 651 C248 684 93 591 78 449 C64 322 55 235 154 144 Z" />
       <path class="map-coastline" d="M118 198 C223 110 319 120 435 159 C574 206 683 137 811 241 C892 307 884 481 767 559 C626 653 532 565 381 606 C253 641 142 563 123 448 C103 329 29 274 118 198 Z" />
-      ${rows.map((row) => regionPathHtml(row, projection)).join("")}
-      ${rows.map((row) => regionLabelHtml(row, projection)).join("")}
+      ${rows.map(regionPathHtml).join("")}
+      ${rows.map(regionLabelHtml).join("")}
     </svg>
   `;
 }
 
-function createProjection(rows) {
-  const points = rows.flatMap((row) => row.polygon || []);
-  const lats = points.map(([lat]) => Number(lat));
-  const lngs = points.map(([, lng]) => Number(lng));
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  const width = SVG_WIDTH - MAP_PADDING * 2;
-  const height = SVG_HEIGHT - MAP_PADDING * 2;
-
-  return ([lat, lng]) => {
-    const x = MAP_PADDING + ((Number(lng) - minLng) / (maxLng - minLng)) * width;
-    const y = MAP_PADDING + ((maxLat - Number(lat)) / (maxLat - minLat)) * height;
-    return [Math.round(x), Math.round(y)];
-  };
-}
-
-function regionPathHtml(row, projection) {
+function regionPathHtml(row) {
   const level = row.heat_level || "normal";
-  const points = (row.polygon || []).map((point) => projection(point).join(",")).join(" ");
+  const shape = REGION_SHAPES[row.id];
+  const points = shape?.points || "";
   const selected = state.selectedId === row.id ? "selected" : "";
 
   return `
@@ -210,16 +212,16 @@ function regionPathHtml(row, projection) {
   `;
 }
 
-function regionLabelHtml(row, projection) {
-  const [x, y] = projection([row.center_lat, row.center_lng]);
+function regionLabelHtml(row) {
+  const [x, y] = REGION_SHAPES[row.id]?.label || [500, 360];
   const workerCount = Number(row.worker_count || 0);
 
   return `
     <g class="map-label ${state.selectedId === row.id ? "selected" : ""}" data-region-id="${escapeHtml(row.id)}" transform="translate(${x} ${y})">
-      <rect x="-54" y="-31" width="108" height="62" rx="8"></rect>
+      <path d="M-48 -30 H48 Q58 -30 58 -20 V24 Q58 34 48 34 H-48 Q-58 34 -58 24 V-20 Q-58 -30 -48 -30 Z"></path>
       <text class="label-name" y="-8" text-anchor="middle">${escapeHtml(row.display_name)}</text>
       <text class="label-temp" y="12" text-anchor="middle">${formatTemp(row.apparent_temp_c)}</text>
-      <text class="label-workers" y="27" text-anchor="middle">작업자 ${workerCount}명</text>
+      <text class="label-workers" y="28" text-anchor="middle">모뎀 ${workerCount}명</text>
     </g>
   `;
 }
