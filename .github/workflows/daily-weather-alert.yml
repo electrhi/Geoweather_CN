@@ -1,0 +1,24 @@
+name: Weather alert monitor
+
+on:
+  schedule:
+    # KST 09:00-20:30, every 30 minutes.
+    - cron: "0,30 0-11 * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh-weather:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Supabase weather refresh function
+        env:
+          SUPABASE_URL: https://ijuxerhjqmrpjwgsfuqk.supabase.co
+          SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqdXhlcmhqcW1ycGp3Z3NmdXFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIyMTk4ODAsImV4cCI6MjA3Nzc5NTg4MH0.kZD7pMsNR7-jlA44oTVzXfaaDiYaI907C57BpsxM_X8"
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "apikey: ${SUPABASE_ANON_KEY}" \
+            --header "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            --header "Content-Type: application/json" \
+            --data '{}' \
+            "${SUPABASE_URL}/functions/v1/cn-weather-refresh"

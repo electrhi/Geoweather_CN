@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.44.4";
 
 type Region = {
   id: string;
+  display_name: string;
   kma_nx: number;
   kma_ny: number;
 };
@@ -39,6 +40,7 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const kmaServiceKey = Deno.env.get("KMA_SERVICE_KEY");
+  const ntfyTopicUrl = Deno.env.get("NTFY_TOPIC_URL");
 
   if (!supabaseUrl || !serviceKey) {
     return json({ error: "supabase_env_missing" }, 500);
@@ -55,7 +57,7 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(supabaseUrl, serviceKey);
   const { data: regions, error: regionError } = await supabase
     .from("cn_weather_regions")
-    .select("id,kma_nx,kma_ny")
+    .select("id,display_name,kma_nx,kma_ny")
     .eq("active", true)
     .order("sort_order");
 
@@ -106,13 +108,15 @@ Deno.serve(async (req: Request) => {
     }
 
     if (heat.id !== "normal") {
-      await supabase.from("cn_weather_alert_events").insert({
+      const alert = await createDailyHeatAlert(supabase, region, heat, apparent, ntfyTopicUrl);
+      results.push({
         region_id: region.id,
-        alert_type: "heat",
-        heat_level: heat.id,
+        ok: true,
         apparent_temp_c: apparent,
-        message: `${heat.label}: 체감온도 ${apparent.toFixed(1)}도`,
+        heat_level: heat.id,
+        alert_created: alert.created,
       });
+      continue;
     }
 
     results.push({ region_id: region.id, ok: true, apparent_temp_c: apparent, heat_level: heat.id });
@@ -201,6 +205,70 @@ function classifyHeat(apparent: number) {
   return { id: matched.id, label: matched.label };
 }
 
+async function createDailyHeatAlert(
+  supabase: ReturnType<typeof createClient>,
+  region: Region,
+  heat: { id: string; label: string },
+  apparent: number,
+  ntfyTopicUrl: string | undefined,
+) {
+  const alertKey = `heat:${region.id}:${todayKstKey()}`;
+  const message = `${region.display_name} ${heat.label}: 체감온도 ${apparent.toFixed(1)}도`;
+
+  const { data: existing } = await supabase
+    .from("cn_weather_alert_events")
+    .select("id")
+    .eq("alert_key", alertKey)
+    .maybeSingle();
+
+  if (existing) {
+    return { created: false };
+  }
+
+  const { error } = await supabase.from("cn_weather_alert_events").insert({
+    region_id: region.id,
+    alert_type: "heat",
+    heat_level: heat.id,
+    apparent_temp_c: apparent,
+    message,
+    alert_key: alertKey,
+  });
+
+  if (error) {
+    return { created: false, error: error.message };
+  }
+
+  if (ntfyTopicUrl) {
+    await sendNtfyAlert(ntfyTopicUrl, "Heat illness alert", message);
+  }
+
+  return { created: true };
+}
+
+async function sendNtfyAlert(topicUrl: string, title: string, message: string) {
+  try {
+    await fetch(topicUrl, {
+      method: "POST",
+      headers: {
+        "Title": title,
+        "Tags": "warning",
+        "Priority": "high",
+      },
+      body: message,
+    });
+  } catch {
+    // Notification delivery must not block weather updates.
+  }
+}
+
+function todayKstKey() {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const yyyy = kst.getUTCFullYear();
+  const mm = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(kst.getUTCDate()).padStart(2, "0");
+  return `${yyyy}${mm}${dd}`;
+}
+
 function toKstIso(baseDate: string, baseTime: string) {
   const y = Number(baseDate.slice(0, 4));
   const m = Number(baseDate.slice(4, 6)) - 1;
@@ -209,4 +277,3 @@ function toKstIso(baseDate: string, baseTime: string) {
   const utc = Date.UTC(y, m, d, h - 9, 0, 0);
   return new Date(utc).toISOString();
 }
-
