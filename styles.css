@@ -514,7 +514,7 @@ tr:hover {
     height: auto;
     min-height: 100vh;
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(640px, 72vh) auto;
+    grid-template-rows: minmax(720px, 78vh) auto;
     overflow: visible;
   }
 
@@ -525,7 +525,7 @@ tr:hover {
   }
 
   #map {
-    min-height: 620px;
+    min-height: 700px;
   }
 
   .board-header {
@@ -543,7 +543,7 @@ tr:hover {
   }
 
   .map-graphic {
-    inset: 154px -6px 14px;
+    inset: 170px 8px 46px;
   }
 
   .panel {
@@ -560,7 +560,7 @@ tr:hover {
 
 @media (max-width: 640px) {
   .app-shell {
-    grid-template-rows: minmax(640px, 74vh) auto;
+    grid-template-rows: minmax(820px, 86vh) auto;
   }
 
   .map-stage {
@@ -568,7 +568,7 @@ tr:hover {
   }
 
   #map {
-    min-height: 620px;
+    min-height: 800px;
   }
 
   h1 {
@@ -576,11 +576,11 @@ tr:hover {
   }
 
   h2 {
-    font-size: 29px;
+    font-size: 31px;
   }
 
   .board-subtitle {
-    max-width: 290px;
+    max-width: 340px;
     font-size: 12px;
   }
 
@@ -594,7 +594,7 @@ tr:hover {
   }
 
   .map-graphic {
-    inset: 160px -118px 22px;
+    inset: 238px 4px 58px;
   }
 
   .map-label text {
@@ -602,23 +602,23 @@ tr:hover {
   }
 
   .label-name {
-    font-size: 17px;
+    font-size: 19px;
   }
 
   .label-temp {
-    font-size: 15px;
+    font-size: 17px;
   }
 
   .label-workers {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .map-label.compact .label-name {
-    font-size: 15px;
+    font-size: 17px;
   }
 
   .map-label.compact .label-temp {
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .board-legend {
