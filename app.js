@@ -111,16 +111,36 @@ async function refreshWeather(forceToast = false) {
 }
 
 async function recordVisit() {
+  const visitorId = getVisitorId();
+  const { error } = await client.functions.invoke("cn-login-alert", {
+    body: {
+      visitor_id: visitorId,
+      user_agent: navigator.userAgent,
+    },
+  });
+
+  if (!error) return;
+
   await client.from("cn_weather_visit_events").insert({
-    user_id: null,
+    user_id: visitorId,
     user_agent: navigator.userAgent,
   });
 
   await client.from("cn_weather_alert_events").insert({
     alert_type: "visit",
-    user_id: null,
+    user_id: visitorId,
     message: "사이트 접속",
   });
+}
+
+function getVisitorId() {
+  const storageKey = "cn_weather_visitor_id";
+  const existing = localStorage.getItem(storageKey);
+  if (existing) return existing;
+
+  const id = crypto.randomUUID();
+  localStorage.setItem(storageKey, id);
+  return id;
 }
 
 function renderTable() {
