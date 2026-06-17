@@ -16,6 +16,7 @@ const lastUpdated = document.querySelector("#lastUpdated");
 const alertCount = document.querySelector("#alertCount");
 const toast = document.querySelector("#toast");
 const refreshButton = document.querySelector("#refreshButton");
+const testAlertButton = createTestAlertButton();
 const infographic = document.querySelector("#map");
 
 const SVG_WIDTH = 1000;
@@ -66,6 +67,8 @@ function bindEvents() {
     await refreshWeather(true);
   });
 
+  testAlertButton.addEventListener("click", testMobileAlert);
+
   window.addEventListener("pointerdown", () => {
     state.audioReady = true;
     if (state.pendingVisitAlarm) {
@@ -73,6 +76,21 @@ function bindEvents() {
       playAlarm();
     }
   }, { once: true });
+}
+
+function createTestAlertButton() {
+  const button = document.createElement("button");
+  button.id = "testAlertButton";
+  button.className = "text-button";
+  button.type = "button";
+  button.textContent = "알람 테스트";
+
+  const actions = document.createElement("div");
+  actions.className = "panel-actions";
+  refreshButton.replaceWith(actions);
+  actions.append(button, refreshButton);
+
+  return button;
 }
 
 async function loadDashboard() {
@@ -108,6 +126,30 @@ async function refreshWeather(forceToast = false) {
   }
 
   await loadDashboard();
+}
+
+async function testMobileAlert() {
+  testAlertButton.disabled = true;
+  showToast("휴대폰 알람 테스트를 보내는 중입니다.");
+
+  const { data, error } = await client.functions.invoke("cn-test-alert", {
+    body: {
+      visitor_id: getVisitorId(),
+      user_agent: navigator.userAgent,
+    },
+  });
+
+  testAlertButton.disabled = false;
+
+  if (error) {
+    showToast(`알람 테스트 실패: ${error.message}`);
+    return;
+  }
+
+  playAlarm();
+  showToast(data?.delivered
+    ? "테스트 알람을 휴대폰으로 보냈습니다."
+    : "테스트는 실행됐지만 NTFY_TOPIC_URL 설정을 확인해야 합니다.");
 }
 
 async function recordVisit() {

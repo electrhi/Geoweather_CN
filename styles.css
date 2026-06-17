@@ -320,6 +320,13 @@ h2 {
   gap: 12px;
 }
 
+.panel-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .panel .eyebrow {
   color: #4f8fe7;
 }
@@ -341,6 +348,23 @@ h2 {
   color: var(--ink);
   font-size: 23px;
   cursor: pointer;
+}
+
+.text-button {
+  min-height: 40px;
+  border: 1px solid rgba(79, 143, 231, 0.32);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #eef6ff;
+  color: #0b4da2;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.text-button:disabled {
+  cursor: progress;
+  opacity: 0.58;
 }
 
 .status-strip {
