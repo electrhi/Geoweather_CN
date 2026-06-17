@@ -415,3 +415,14 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+
+function formatRegionTemp(row) {
+  const value = displayTempValue(row);
+  if (value === null) return "갱신대기";
+
+  return `체감 ${formatTemp(value)}`;
+}
+
+function displayTempValue(row) {
+  return apparentTemp(row);
+}
