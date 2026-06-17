@@ -22,25 +22,25 @@ const SVG_WIDTH = 1000;
 const SVG_HEIGHT = 720;
 
 const REGION_SHAPES = {
-  taean: { label: [135, 280], points: "70,225 165,175 220,230 185,318 92,338 46,286" },
-  seosan: { label: [270, 235], points: "184,164 314,143 360,229 286,308 185,318 220,230" },
-  dangjin: { label: [416, 164], points: "312,98 448,92 492,176 360,229 314,143" },
-  hongseong: { label: [250, 385], points: "185,318 286,308 348,386 286,474 169,447 128,361" },
-  yesan: { label: [434, 297], points: "360,229 492,176 564,260 498,366 348,386 286,308" },
-  asan: { label: [586, 177], points: "492,104 617,94 660,190 564,260 492,176" },
-  cheonan: { label: [735, 178], points: "660,104 807,105 865,196 760,276 660,190" },
-  boryeong: { label: [196, 520], points: "126,457 286,474 316,576 210,647 92,596" },
-  cheongyang: { label: [388, 475], points: "348,386 498,366 515,484 421,572 316,576 286,474" },
-  gongju: { label: [581, 405], points: "564,260 681,304 690,432 600,526 515,484 498,366" },
-  sejong: { label: [720, 318], points: "660,190 760,276 790,365 690,432 681,304 564,260" },
-  "daedeok-yuseong": { label: [772, 445], points: "790,365 872,410 852,518 746,536 690,432" },
-  "west-daejeon": { label: [672, 526], points: "600,526 690,432 746,536 684,628 590,602" },
-  "daejeon-central": { label: [815, 580], points: "746,536 852,518 905,606 832,682 684,628" },
-  buyeo: { label: [432, 610], points: "316,576 421,572 590,602 548,696 390,692 210,647" },
-  nonsan: { label: [617, 655], points: "590,602 684,628 721,704 548,696" },
-  gyeryong: { label: [744, 656], points: "684,628 832,682 816,718 721,704" },
-  geumsan: { label: [882, 668], points: "832,682 905,606 958,660 918,716 816,718" },
-  seocheon: { label: [292, 674], points: "210,647 390,692 332,736 190,724 92,596" },
+  dangjin: { label: [270, 118], tile: [270, 118, 176, 104] },
+  asan: { label: [464, 118], tile: [464, 118, 176, 104] },
+  cheonan: { label: [658, 118], tile: [658, 118, 176, 104] },
+  taean: { label: [172, 248], tile: [172, 248, 176, 104] },
+  seosan: { label: [366, 248], tile: [366, 248, 176, 104] },
+  yesan: { label: [560, 248], tile: [560, 248, 176, 104] },
+  sejong: { label: [754, 248], tile: [754, 248, 176, 104] },
+  hongseong: { label: [270, 378], tile: [270, 378, 176, 104] },
+  gongju: { label: [464, 378], tile: [464, 378, 176, 104] },
+  "daedeok-yuseong": { label: [658, 378], tile: [658, 378, 176, 104], compact: true },
+  boryeong: { label: [172, 508], tile: [172, 508, 176, 104] },
+  cheongyang: { label: [366, 508], tile: [366, 508, 176, 104] },
+  "west-daejeon": { label: [560, 508], tile: [560, 508, 176, 104] },
+  "daejeon-central": { label: [754, 508], tile: [754, 508, 176, 104], compact: true },
+  seocheon: { label: [172, 638], tile: [172, 638, 176, 104] },
+  buyeo: { label: [366, 638], tile: [366, 638, 176, 104] },
+  nonsan: { label: [560, 638], tile: [560, 638, 176, 104] },
+  gyeryong: { label: [754, 638], tile: [754, 638, 176, 104] },
+  geumsan: { label: [894, 638], tile: [894, 638, 148, 104] },
 };
 
 const levelCopy = {
@@ -180,14 +180,17 @@ function mapSvgHtml(rows) {
     <svg class="infographic-map" viewBox="0 0 ${SVG_WIDTH} ${SVG_HEIGHT}" role="img" aria-label="충남권 권역별 체감온도 지도">
       <defs>
         <filter id="regionShadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#1f2b35" flood-opacity="0.16" />
+          <feDropShadow dx="0" dy="12" stdDeviation="9" flood-color="#011025" flood-opacity="0.32" />
         </filter>
-        <linearGradient id="seaGradient" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stop-color="#dff3f4" />
-          <stop offset="100%" stop-color="#ecf2fb" />
+        <linearGradient id="broadcastStage" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stop-color="#0d2b5c" />
+          <stop offset="56%" stop-color="#103f83" />
+          <stop offset="100%" stop-color="#06172f" />
         </linearGradient>
       </defs>
-      <path class="map-backplate" d="M154 144 C260 48 410 77 508 118 C636 172 762 126 854 225 C945 323 897 514 779 595 C647 688 498 624 388 651 C248 684 93 591 78 449 C64 322 55 235 154 144 Z" />
+      <rect class="map-backplate" x="44" y="42" width="912" height="636" rx="34" />
+      <path class="broadcast-line" d="M80 184 H922 M80 314 H922 M80 444 H922 M80 574 H922 M230 78 V668 M424 78 V668 M618 78 V668 M812 78 V668" />
+      <path class="broadcast-outline" d="M75 64 H925 L956 95 V626 L925 657 H75 L44 626 V95 Z" />
       ${rows.map(regionPathHtml).join("")}
       ${rows.map(regionLabelHtml).join("")}
     </svg>
@@ -197,7 +200,7 @@ function mapSvgHtml(rows) {
 function regionPathHtml(row) {
   const level = row.heat_level || "normal";
   const shape = REGION_SHAPES[row.id];
-  const points = shape?.points || "";
+  const points = shape?.tile ? tilePoints(...shape.tile) : "";
   const selected = state.selectedId === row.id ? "selected" : "";
 
   return `
@@ -213,16 +216,35 @@ function regionPathHtml(row) {
 }
 
 function regionLabelHtml(row) {
-  const [x, y] = REGION_SHAPES[row.id]?.label || [500, 360];
+  const shape = REGION_SHAPES[row.id];
+  const [x, y] = shape?.label || [500, 360];
   const workerCount = Number(row.worker_count || 0);
+  const compact = shape?.compact ? "compact" : "";
 
   return `
-    <g class="map-label ${state.selectedId === row.id ? "selected" : ""}" data-region-id="${escapeHtml(row.id)}" transform="translate(${x} ${y})">
+    <g class="map-label ${compact} ${state.selectedId === row.id ? "selected" : ""}" data-region-id="${escapeHtml(row.id)}" transform="translate(${x} ${y})">
       <text class="label-name" y="-12" text-anchor="middle">${escapeHtml(row.display_name)}</text>
       <text class="label-temp" y="10" text-anchor="middle">${formatRegionTemp(row)}</text>
       <text class="label-workers" y="27" text-anchor="middle">모뎀 ${workerCount}명</text>
     </g>
   `;
+}
+
+function tilePoints(cx, cy, width, height) {
+  const left = cx - width / 2;
+  const right = cx + width / 2;
+  const top = cy - height / 2;
+  const bottom = cy + height / 2;
+  const notch = Math.min(width, height) * 0.18;
+
+  return [
+    [left + notch, top],
+    [right - notch, top],
+    [right, cy],
+    [right - notch, bottom],
+    [left + notch, bottom],
+    [left, cy],
+  ].map(([x, y]) => `${Math.round(x)},${Math.round(y)}`).join(" ");
 }
 
 function focusRegion(regionId) {

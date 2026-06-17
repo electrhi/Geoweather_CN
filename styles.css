@@ -4,15 +4,15 @@
   --ink: #231f20;
   --muted: #6d7b8c;
   --line: #e4e9ee;
-  --blue-1: #e8edf3;
-  --blue-2: #87a9d8;
-  --blue-3: #5d86c9;
-  --blue-4: #2b66ad;
-  --blue-5: #0f4f92;
-  --yellow: #c59419;
-  --orange: #d5692b;
-  --red: #c83e35;
-  --violet: #7850b8;
+  --blue-1: #dcecff;
+  --blue-2: #80b6ff;
+  --blue-3: #1976d2;
+  --blue-4: #0b4da2;
+  --blue-5: #06172f;
+  --yellow: #f8c93c;
+  --orange: #f26a2e;
+  --red: #df3030;
+  --violet: #8a3ffc;
 }
 
 * {
@@ -41,7 +41,8 @@ button {
   position: relative;
   min-width: 0;
   min-height: 0;
-  padding: 28px 34px 6px;
+  padding: 18px 22px 0;
+  background: #06172f;
 }
 
 #map {
@@ -51,8 +52,11 @@ button {
   min-height: 600px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 52% 46%, rgba(226, 232, 238, 0.84), transparent 38%),
-    #fff;
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    radial-gradient(circle at 66% 32%, rgba(67, 139, 255, 0.34), transparent 36%),
+    linear-gradient(135deg, #071b3a 0%, #0d3978 48%, #041022 100%);
+  background-size: 54px 54px, 54px 54px, auto, auto;
 }
 
 .board-header {
@@ -69,7 +73,7 @@ button {
 
 .eyebrow {
   margin: 0 0 4px;
-  color: var(--blue-4);
+  color: #8fc2ff;
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0;
@@ -88,11 +92,13 @@ h1 {
 h2 {
   font-size: clamp(32px, 4.8vw, 60px);
   letter-spacing: 0;
+  color: #fff;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
 }
 
 .board-subtitle {
   margin: 10px 0 0;
-  color: var(--muted);
+  color: rgba(224, 238, 255, 0.78);
   font-size: clamp(13px, 1.4vw, 18px);
   font-weight: 600;
 }
@@ -107,16 +113,16 @@ h2 {
 }
 
 .map-summary span {
-  border-left: 2px solid var(--blue-4);
+  border-left: 2px solid #88bfff;
   padding: 2px 0 2px 9px;
-  color: var(--blue-4);
+  color: #dcecff;
   font-size: 15px;
   font-weight: 800;
 }
 
 .map-graphic {
   position: absolute;
-  inset: 110px 40px 20px;
+  inset: 118px 18px 12px;
 }
 
 .infographic-map {
@@ -125,28 +131,43 @@ h2 {
 }
 
 .map-backplate {
-  fill: #eeeeee;
-  opacity: 0.78;
+  fill: url("#broadcastStage");
+  opacity: 0.92;
+  stroke: rgba(188, 220, 255, 0.42);
+  stroke-width: 2;
+}
+
+.broadcast-line {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 2;
+}
+
+.broadcast-outline {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.62);
+  stroke-width: 5;
+  stroke-linejoin: round;
 }
 
 .map-region {
   filter: url("#regionShadow");
-  stroke: #fff;
-  stroke-width: 5;
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 6;
   stroke-linejoin: round;
   cursor: pointer;
-  transition: filter 160ms ease, stroke-width 160ms ease;
+  transition: filter 160ms ease, stroke-width 160ms ease, transform 160ms ease;
 }
 
 .map-region:hover,
 .map-region.selected {
-  filter: url("#regionShadow") brightness(1.04) saturate(1.08);
-  stroke: #202020;
-  stroke-width: 6;
+  filter: url("#regionShadow") brightness(1.12) saturate(1.12);
+  stroke: #ffffff;
+  stroke-width: 10;
 }
 
 .level-fill-normal {
-  fill: var(--blue-3);
+  fill: #246fd0;
 }
 
 .level-fill-interest {
@@ -172,32 +193,40 @@ h2 {
 .map-label text {
   font-family: "Segoe UI", "Noto Sans KR", system-ui, sans-serif;
   paint-order: stroke;
-  stroke: rgba(255, 255, 255, 0.9);
+  stroke: rgba(4, 16, 34, 0.82);
   stroke-linejoin: round;
-  stroke-width: 6px;
+  stroke-width: 7px;
 }
 
 .label-name {
-  fill: #133f74;
-  font-size: 17px;
+  fill: #ffffff;
+  font-size: 22px;
   font-weight: 900;
 }
 
 .label-temp {
-  fill: #10355f;
-  font-size: 18px;
+  fill: #ffffff;
+  font-size: 20px;
   font-weight: 900;
 }
 
 .label-workers {
-  fill: #335f9e;
-  font-size: 12px;
+  fill: #dbeaff;
+  font-size: 13px;
   font-weight: 800;
 }
 
 .map-label.selected text {
   fill: #fff;
-  stroke: rgba(15, 79, 146, 0.9);
+  stroke: rgba(0, 0, 0, 0.82);
+}
+
+.map-label.compact .label-name {
+  font-size: 19px;
+}
+
+.map-label.compact .label-temp {
+  font-size: 18px;
 }
 
 .board-legend {
@@ -215,7 +244,7 @@ h2 {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #365777;
+  color: #dcecff;
   font-size: 12px;
   font-weight: 800;
 }
@@ -228,8 +257,8 @@ h2 {
   max-width: min(520px, calc(100vw - 76px));
   border-left: 3px solid var(--blue-4);
   padding: 7px 0 7px 12px;
-  color: var(--blue-4);
-  background: rgba(255, 255, 255, 0.78);
+  color: #fff;
+  background: rgba(5, 18, 39, 0.78);
   font-size: 14px;
   font-weight: 800;
 }
@@ -437,15 +466,15 @@ tr:hover {
 
 @media (max-width: 980px) {
   .app-shell {
-    grid-template-rows: minmax(560px, 68vh) auto;
+    grid-template-rows: minmax(640px, 72vh) auto;
   }
 
   .map-stage {
-    padding: 18px 16px 0;
+    padding: 12px 10px 0;
   }
 
   #map {
-    min-height: 540px;
+    min-height: 620px;
   }
 
   .board-header {
@@ -463,7 +492,7 @@ tr:hover {
   }
 
   .map-graphic {
-    inset: 150px -10px 44px;
+    inset: 154px -6px 14px;
   }
 
   .panel {
@@ -474,7 +503,7 @@ tr:hover {
 
 @media (max-width: 640px) {
   .app-shell {
-    grid-template-rows: minmax(500px, 64vh) auto;
+    grid-template-rows: minmax(640px, 74vh) auto;
   }
 
   .map-stage {
@@ -482,7 +511,7 @@ tr:hover {
   }
 
   #map {
-    min-height: 500px;
+    min-height: 620px;
   }
 
   h1 {
@@ -508,23 +537,31 @@ tr:hover {
   }
 
   .map-graphic {
-    inset: 160px -74px 48px;
+    inset: 160px -118px 22px;
   }
 
   .map-label text {
-    stroke-width: 5px;
+    stroke-width: 6px;
   }
 
   .label-name {
-    font-size: 12px;
+    font-size: 17px;
   }
 
   .label-temp {
-    font-size: 12px;
+    font-size: 15px;
   }
 
   .label-workers {
-    font-size: 9px;
+    font-size: 11px;
+  }
+
+  .map-label.compact .label-name {
+    font-size: 15px;
+  }
+
+  .map-label.compact .label-temp {
+    font-size: 14px;
   }
 
   .board-legend {
