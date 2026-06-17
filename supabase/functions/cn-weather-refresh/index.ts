@@ -1,5 +1,6 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+﻿import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.44.4";
+import webpush from "npm:web-push@3.6.7";
 
 type Region = {
   id: string;
@@ -15,6 +16,11 @@ type KmaItem = {
   baseTime: string;
 };
 
+type PushRow = {
+  id: string;
+  subscription: unknown;
+};
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -22,10 +28,10 @@ const CORS_HEADERS = {
 };
 
 const HEAT_LEVELS = [
-  { id: "danger", min: 38, label: "위험" },
-  { id: "warning", min: 35, label: "경고" },
-  { id: "caution", min: 33, label: "주의" },
-  { id: "interest", min: 31, label: "관심" },
+  { id: "danger", min: 38, label: "Danger" },
+  { id: "warning", min: 35, label: "Warning" },
+  { id: "caution", min: 33, label: "Caution" },
+  { id: "interest", min: 31, label: "Interest" },
 ] as const;
 
 Deno.serve(async (req: Request) => {
@@ -41,6 +47,10 @@ Deno.serve(async (req: Request) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const kmaServiceKey = Deno.env.get("KMA_SERVICE_KEY");
   const ntfyTopicUrl = Deno.env.get("NTFY_TOPIC_URL");
+  const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY") ||
+    "BLJY86NOSu88VTst9J2xXpl6j340y7i2KQhV7bqCTRep7pXK9UQMMa9iAX_G8WPoTyR_Eq6E7w-TYhjl9GEF6Nw";
+  const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
+  const vapidSubject = Deno.env.get("VAPID_SUBJECT") || "mailto:admin@example.com";
 
   if (!supabaseUrl || !serviceKey) {
     return json({ error: "supabase_env_missing" }, 500);
@@ -55,6 +65,9 @@ Deno.serve(async (req: Request) => {
   }
 
   const supabase = createClient(supabaseUrl, serviceKey);
+  if (vapidPublicKey && vapidPrivateKey) {
+    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+  }
   const { data: regions, error: regionError } = await supabase
     .from("cn_weather_regions")
     .select("id,display_name,kma_nx,kma_ny")
@@ -108,7 +121,10 @@ Deno.serve(async (req: Request) => {
     }
 
     if (heat.id !== "normal") {
-      const alert = await createDailyHeatAlert(supabase, region, heat, apparent, ntfyTopicUrl);
+      const alert = await createDailyHeatAlert(supabase, region, heat, apparent, {
+        ntfyTopicUrl,
+        webPushEnabled: Boolean(vapidPublicKey && vapidPrivateKey),
+      });
       results.push({
         region_id: region.id,
         ok: true,
@@ -219,7 +235,7 @@ function calculateApparentTemperature(tempC: number, humidity: number, windMs: n
 function classifyHeat(apparent: number) {
   const matched = HEAT_LEVELS.find((level) => apparent >= level.min);
   if (!matched) {
-    return { id: "normal", label: "정상" };
+    return { id: "normal", label: "Normal" };
   }
   return { id: matched.id, label: matched.label };
 }
@@ -229,10 +245,11 @@ async function createDailyHeatAlert(
   region: Region,
   heat: { id: string; label: string },
   apparent: number,
-  ntfyTopicUrl: string | undefined,
+  options: { ntfyTopicUrl?: string; webPushEnabled: boolean },
 ) {
   const alertKey = `heat:${region.id}:${todayKstKey()}`;
-  const message = `${region.display_name} ${heat.label}: 체감온도 ${apparent.toFixed(1)}도`;
+  const pushMessage = `${region.display_name} ${heat.label}: apparent temperature ${apparent.toFixed(1)}C`;
+  const message = pushMessage;
 
   const { data: existing } = await supabase
     .from("cn_weather_alert_events")
@@ -257,11 +274,49 @@ async function createDailyHeatAlert(
     return { created: false, error: error.message };
   }
 
-  if (ntfyTopicUrl) {
-    await sendNtfyAlert(ntfyTopicUrl, "Heat illness alert", message);
+  if (options.ntfyTopicUrl) {
+    await sendNtfyAlert(options.ntfyTopicUrl, "Heat illness alert", pushMessage);
+  }
+
+  if (options.webPushEnabled) {
+    await sendWebPushAlerts(supabase, {
+      title: "Heat illness alert",
+      body: pushMessage,
+      tag: alertKey,
+      url: "/Geoweather_CN/",
+    });
   }
 
   return { created: true };
+}
+
+async function sendWebPushAlerts(
+  supabase: ReturnType<typeof createClient>,
+  payload: Record<string, string>,
+) {
+  const { data, error } = await supabase
+    .from("cn_push_subscriptions")
+    .select("id,subscription")
+    .eq("active", true);
+
+  if (error || !data) return;
+
+  for (const row of data as PushRow[]) {
+    try {
+      await webpush.sendNotification(row.subscription as webpush.PushSubscription, JSON.stringify(payload));
+    } catch (error) {
+      const statusCode = typeof error === "object" && error && "statusCode" in error
+        ? Number((error as { statusCode: unknown }).statusCode)
+        : 0;
+
+      if (statusCode === 404 || statusCode === 410) {
+        await supabase
+          .from("cn_push_subscriptions")
+          .update({ active: false, updated_at: new Date().toISOString() })
+          .eq("id", row.id);
+      }
+    }
+  }
 }
 
 async function sendNtfyAlert(topicUrl: string, title: string, message: string) {

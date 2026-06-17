@@ -2,6 +2,7 @@ const SUPABASE_URL = "https://ijuxerhjqmrpjwgsfuqk.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqdXhlcmhqcW1ycGp3Z3NmdXFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIyMTk4ODAsImV4cCI6MjA3Nzc5NTg4MH0.kZD7pMsNR7-jlA44oTVzXfaaDiYaI907C57BpsxM_X8";
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 const HEAT_LEVELS = new Set(["interest", "caution", "warning", "danger"]);
+const VAPID_PUBLIC_KEY = "BLJY86NOSu88VTst9J2xXpl6j340y7i2KQhV7bqCTRep7pXK9UQMMa9iAX_G8WPoTyR_Eq6E7w-TYhjl9GEF6Nw";
 
 const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const state = {
@@ -16,7 +17,7 @@ const lastUpdated = document.querySelector("#lastUpdated");
 const alertCount = document.querySelector("#alertCount");
 const toast = document.querySelector("#toast");
 const refreshButton = document.querySelector("#refreshButton");
-const testAlertButton = createTestAlertButton();
+const { pushAlertButton, testAlertButton } = createAlertButtons();
 const infographic = document.querySelector("#map");
 
 const SVG_WIDTH = 1000;
@@ -67,6 +68,7 @@ function bindEvents() {
     await refreshWeather(true);
   });
 
+  pushAlertButton.addEventListener("click", enableWebPush);
   testAlertButton.addEventListener("click", testMobileAlert);
 
   window.addEventListener("pointerdown", () => {
@@ -78,7 +80,13 @@ function bindEvents() {
   }, { once: true });
 }
 
-function createTestAlertButton() {
+function createAlertButtons() {
+  const pushButton = document.createElement("button");
+  pushButton.id = "pushAlertButton";
+  pushButton.className = "text-button";
+  pushButton.type = "button";
+  pushButton.textContent = "알림 허용";
+
   const button = document.createElement("button");
   button.id = "testAlertButton";
   button.className = "text-button";
@@ -88,9 +96,9 @@ function createTestAlertButton() {
   const actions = document.createElement("div");
   actions.className = "panel-actions";
   refreshButton.replaceWith(actions);
-  actions.append(button, refreshButton);
+  actions.append(pushButton, button, refreshButton);
 
-  return button;
+  return { pushAlertButton: pushButton, testAlertButton: button };
 }
 
 async function loadDashboard() {
@@ -128,9 +136,30 @@ async function refreshWeather(forceToast = false) {
   await loadDashboard();
 }
 
+async function enableWebPush() {
+  pushAlertButton.disabled = true;
+
+  try {
+    await ensureWebPushSubscription();
+    showToast("웹푸시 알림이 허용되었습니다.");
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : "웹푸시 알림 설정에 실패했습니다.");
+  } finally {
+    pushAlertButton.disabled = false;
+  }
+}
+
 async function testMobileAlert() {
   testAlertButton.disabled = true;
-  showToast("휴대폰 알람 테스트를 보내는 중입니다.");
+  showToast("웹푸시 알람 테스트를 보내는 중입니다.");
+
+  try {
+    await ensureWebPushSubscription();
+  } catch (error) {
+    testAlertButton.disabled = false;
+    showToast(error instanceof Error ? error.message : "웹푸시 알림 설정에 실패했습니다.");
+    return;
+  }
 
   const { data, error } = await client.functions.invoke("cn-test-alert", {
     body: {
@@ -147,9 +176,57 @@ async function testMobileAlert() {
   }
 
   playAlarm();
-  showToast(data?.delivered
-    ? "테스트 알람을 휴대폰으로 보냈습니다."
-    : "테스트는 실행됐지만 NTFY_TOPIC_URL 설정을 확인해야 합니다.");
+  if (data?.error === "vapid_private_key_missing") {
+    showToast("테스트는 실행됐지만 VAPID_PRIVATE_KEY Secret을 설정해야 합니다.");
+    return;
+  }
+
+  showToast(Number(data?.delivered || 0) > 0
+    ? "테스트 알람을 웹푸시로 보냈습니다."
+    : "테스트는 실행됐지만 저장된 웹푸시 구독이 없습니다.");
+}
+
+async function ensureWebPushSubscription() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    throw new Error("이 브라우저는 웹푸시 알림을 지원하지 않습니다.");
+  }
+
+  if (!window.isSecureContext) {
+    throw new Error("웹푸시는 HTTPS 사이트에서만 사용할 수 있습니다. GitHub Pages 주소로 열어주세요.");
+  }
+
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") {
+    throw new Error("브라우저 알림 권한이 허용되지 않았습니다.");
+  }
+
+  const registration = await navigator.serviceWorker.register("./service-worker.js");
+  const existing = await registration.pushManager.getSubscription();
+  const subscription = existing || await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+  });
+
+  const { error } = await client.functions.invoke("cn-push-subscribe", {
+    body: {
+      visitor_id: getVisitorId(),
+      user_agent: navigator.userAgent,
+      subscription: subscription.toJSON(),
+    },
+  });
+
+  if (error) {
+    throw new Error(`웹푸시 구독 저장 실패: ${error.message}`);
+  }
+
+  return subscription;
+}
+
+function urlBase64ToUint8Array(value) {
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replaceAll("-", "+").replaceAll("_", "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
 async function recordVisit() {
