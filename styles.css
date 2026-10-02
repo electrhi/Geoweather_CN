@@ -331,3 +331,98 @@ tr:hover {
     height: 48vh;
   }
 }
+
+
+.subtitle {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.push-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbf8;
+}
+
+.push-card > div {
+  display: grid;
+  gap: 3px;
+}
+
+.push-card strong {
+  font-size: 14px;
+}
+
+.push-card span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.push-card button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 14px;
+  background: #eef6f0;
+  color: var(--ink);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.push-card button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.threshold-guide {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.threshold-guide span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.dot.caution { background: var(--orange); }
+.dot.warning { background: var(--red); }
+.dot.danger { background: var(--violet); }
+
+.region-name {
+  display: block;
+  font-weight: 800;
+}
+
+td small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+@media (max-width: 560px) {
+  .push-card {
+    grid-template-columns: 1fr;
+  }
+
+  .push-card button {
+    width: 100%;
+  }
+}
