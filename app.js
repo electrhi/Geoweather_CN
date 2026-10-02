@@ -1,16 +1,39 @@
 const SUPABASE_URL = "https://ijuxerhjqmrpjwgsfuqk.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqdXhlcmhqcW1ycGp3Z3NmdXFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIyMTk4ODAsImV4cCI6MjA3Nzc5NTg4MH0.kZD7pMsNR7-jlA44oTVzXfaaDiYaI907C57BpsxM_X8";
-const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
-const HEAT_LEVELS = new Set(["interest", "caution", "warning", "danger"]);
+const DASHBOARD_REFRESH_MS = 2 * 60 * 1000;
+const GEO_TOPO_URL = "https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2018/json/skorea-municipalities-2018-topo-simple.json";
+
+const REGION_BOUNDARY_CODES = {
+  "daejeon-dong": ["25010"],
+  "daejeon-jung": ["25020"],
+  "daejeon-seo": ["25030"],
+  "daejeon-yuseong": ["25040"],
+  "daejeon-daedeok": ["25050"],
+  sejong: ["29010"],
+  cheonan: ["34011", "34012"],
+  gongju: ["34020"],
+  boryeong: ["34030"],
+  asan: ["34040"],
+  seosan: ["34050"],
+  nonsan: ["34060"],
+  gyeryong: ["34070"],
+  dangjin: ["34080"],
+  geumsan: ["34310"],
+  buyeo: ["34330"],
+  seocheon: ["34340"],
+  cheongyang: ["34350"],
+  hongseong: ["34360"],
+  yesan: ["34370"],
+  taean: ["34380"],
+};
 
 const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const state = {
   rows: [],
   polygons: new Map(),
   labels: new Map(),
+  boundaryFeatures: new Map(),
   selectedId: null,
-  audioReady: false,
-  pendingVisitAlarm: false,
 };
 
 const tableBody = document.querySelector("#regionTable");
@@ -20,11 +43,13 @@ const toast = document.querySelector("#toast");
 const userIdInput = document.querySelector("#userIdInput");
 const refreshButton = document.querySelector("#refreshButton");
 const saveUserButton = document.querySelector("#saveUserButton");
+const pushButton = document.querySelector("#pushButton");
+const pushStatus = document.querySelector("#pushStatus");
 
 const map = L.map("map", {
   zoomControl: false,
-  minZoom: 8,
-}).setView([36.52, 126.9], 9);
+  minZoom: 7,
+}).setView([36.55, 126.95], 9);
 
 L.control.zoom({ position: "topright" }).addTo(map);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -35,9 +60,9 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 const palette = {
   normal: "#2f7d59",
   interest: "#c99a16",
-  caution: "#d66a28",
+  caution: "#d68a28",
   warning: "#c84034",
-  danger: "#7b4fb3",
+  danger: "#7b263a",
 };
 
 init();
@@ -45,15 +70,17 @@ init();
 async function init() {
   userIdInput.value = localStorage.getItem("cnWeatherUserId") || "";
   bindEvents();
+  await loadAdministrativeBoundaries();
   await loadDashboard();
   await recordVisit();
-  await refreshWeather();
-  setInterval(refreshWeather, REFRESH_INTERVAL_MS);
+  await updatePushUi();
+  setInterval(loadDashboard, DASHBOARD_REFRESH_MS);
 }
 
 function bindEvents() {
   refreshButton.addEventListener("click", async () => {
-    await refreshWeather(true);
+    await loadDashboard();
+    showToast("최신 관제 데이터를 다시 불러왔습니다.");
   });
 
   saveUserButton.addEventListener("click", () => {
@@ -61,13 +88,28 @@ function bindEvents() {
     showToast("작업자 정보가 저장됐습니다.");
   });
 
-  window.addEventListener("pointerdown", () => {
-    state.audioReady = true;
-    if (state.pendingVisitAlarm) {
-      state.pendingVisitAlarm = false;
-      playAlarm();
+  pushButton.addEventListener("click", togglePushSubscription);
+}
+
+async function loadAdministrativeBoundaries() {
+  try {
+    const response = await fetch(GEO_TOPO_URL);
+    if (!response.ok) throw new Error("행정경계 다운로드 실패");
+    const topology = await response.json();
+    const object = topology.objects.skorea_municipalities_2018_geo;
+    const featureCollection = window.topojson.feature(topology, object);
+    const byCode = new Map(
+      featureCollection.features.map((feature) => [String(feature.properties.code), feature]),
+    );
+
+    for (const [regionId, codes] of Object.entries(REGION_BOUNDARY_CODES)) {
+      const features = codes.map((code) => byCode.get(code)).filter(Boolean);
+      if (features.length) state.boundaryFeatures.set(regionId, features);
     }
-  }, { once: true });
+  } catch (error) {
+    console.warn(error);
+    showToast("행정경계 데이터를 불러오지 못해 임시 경계를 사용합니다.");
+  }
 }
 
 async function loadDashboard() {
@@ -77,7 +119,7 @@ async function loadDashboard() {
     .order("sort_order");
 
   if (error) {
-    showToast(`데이터를 불러오지 못했습니다: ${error.message}`);
+    showToast("데이터를 불러오지 못했습니다: " + error.message);
     return;
   }
 
@@ -85,24 +127,6 @@ async function loadDashboard() {
   renderTable();
   renderMap();
   updateSummary();
-  triggerHeatAlarms();
-}
-
-async function refreshWeather(forceToast = false) {
-  const { data, error } = await client.functions.invoke("cn-weather-refresh", { body: {} });
-
-  if (error) {
-    showToast(`기상청 업데이트 실패: ${error.message}`);
-    return;
-  }
-
-  if (data?.error === "kma_service_key_missing") {
-    showToast("Supabase Edge Function에 KMA_SERVICE_KEY를 설정하면 기상청 값이 갱신됩니다.");
-  } else if (forceToast) {
-    showToast("기상청 체감온도 갱신을 요청했습니다.");
-  }
-
-  await loadDashboard();
 }
 
 async function recordVisit() {
@@ -111,14 +135,6 @@ async function recordVisit() {
     user_id: userId,
     user_agent: navigator.userAgent,
   });
-
-  await client.from("cn_weather_alert_events").insert({
-    alert_type: "visit",
-    user_id: userId,
-    message: userId ? `${userId} 접속` : "익명 접속",
-  });
-
-  notify("접속 알림", userId ? `${userId} 작업자가 접속했습니다.` : "사이트 접속이 감지됐습니다.");
 }
 
 function renderTable() {
@@ -126,11 +142,14 @@ function renderTable() {
     const tr = document.createElement("tr");
     const assigned = row.user_id || "-";
     tr.dataset.regionId = row.id;
-    tr.innerHTML = `
-      <td>${escapeHtml(row.display_name)}</td>
-      <td><span class="temp level-${row.heat_level || "normal"}">${formatTemp(row.apparent_temp_c)}</span></td>
-      <td><button class="assign-button" type="button" title="현재 작업자 배정">${escapeHtml(assigned)}</button></td>
-    `;
+    tr.innerHTML =
+      "<td><span class=\"region-name\">" + escapeHtml(row.display_name) + "</span><small>" +
+      escapeHtml(row.province || "") + "</small></td>" +
+      "<td><span class=\"temp level-" + escapeHtml(row.heat_level || "normal") + "\">" +
+      formatTemp(row.apparent_temp_c) + "</span></td>" +
+      "<td><button class=\"assign-button\" type=\"button\" title=\"현재 작업자 배정\">" +
+      escapeHtml(assigned) + "</button></td>";
+
     tr.addEventListener("click", () => focusRegion(row.id));
     tr.querySelector(".assign-button").addEventListener("click", async (event) => {
       event.stopPropagation();
@@ -142,7 +161,6 @@ function renderTable() {
 
 async function assignCurrentUser(regionId) {
   const userId = userIdInput.value.trim();
-
   if (!userId) {
     showToast("작업자 user_id를 먼저 입력해 주세요.");
     userIdInput.focus();
@@ -150,13 +168,12 @@ async function assignCurrentUser(regionId) {
   }
 
   localStorage.setItem("cnWeatherUserId", userId);
-
   const { error } = await client
     .from("cn_weather_assignments")
     .upsert({ region_id: regionId, user_id: userId, updated_at: new Date().toISOString() });
 
   if (error) {
-    showToast(`작업자 배정 실패: ${error.message}`);
+    showToast("작업자 배정 실패: " + error.message);
     return;
   }
 
@@ -170,30 +187,49 @@ function renderMap() {
   state.polygons.clear();
   state.labels.clear();
 
-  const bounds = [];
+  const group = L.featureGroup();
 
   for (const row of state.rows) {
     const color = palette[row.heat_level] || palette.normal;
-    const latLngs = (row.polygon || []).map(([lat, lng]) => [lat, lng]);
-    bounds.push(...latLngs);
+    const boundaryFeatures = state.boundaryFeatures.get(row.id);
+    let polygon;
 
-    const polygon = L.polygon(latLngs, {
-      color,
-      fillColor: color,
-      fillOpacity: 0.34,
-      weight: 2,
-    }).addTo(map);
+    if (boundaryFeatures?.length) {
+      polygon = L.geoJSON(
+        { type: "FeatureCollection", features: boundaryFeatures },
+        {
+          style: {
+            color,
+            fillColor: color,
+            fillOpacity: 0.36,
+            weight: 2,
+          },
+        },
+      ).addTo(map);
+    } else {
+      const latLngs = (row.polygon || []).map(([lat, lng]) => [lat, lng]);
+      polygon = L.polygon(latLngs, {
+        color,
+        fillColor: color,
+        fillOpacity: 0.36,
+        weight: 2,
+      }).addTo(map);
+    }
 
     polygon.bindPopup(popupHtml(row));
     polygon.on("click", () => focusRegion(row.id));
     state.polygons.set(row.id, polygon);
+    group.addLayer(polygon);
 
     const label = L.marker([row.center_lat, row.center_lng], {
       icon: L.divIcon({
         className: "region-label",
-        html: `<div><strong>${escapeHtml(row.display_name)}</strong><span>${formatTemp(row.apparent_temp_c)}</span></div>`,
-        iconSize: [96, 48],
-        iconAnchor: [48, 24],
+        html:
+          "<div class=\"level-border-" + escapeHtml(row.heat_level || "normal") + "\">" +
+          "<strong>" + escapeHtml(row.display_name) + "</strong>" +
+          "<span>" + formatTemp(row.apparent_temp_c) + "</span></div>",
+        iconSize: [104, 50],
+        iconAnchor: [52, 25],
       }),
       interactive: true,
     }).addTo(map);
@@ -202,15 +238,14 @@ function renderMap() {
     state.labels.set(row.id, label);
   }
 
-  if (bounds.length > 0) {
-    map.fitBounds(bounds, { padding: [28, 28] });
+  if (group.getLayers().length) {
+    map.fitBounds(group.getBounds(), { padding: [26, 26] });
   }
 }
 
 function focusRegion(regionId) {
   const row = state.rows.find((item) => item.id === regionId);
   const polygon = state.polygons.get(regionId);
-
   if (!row || !polygon) return;
 
   state.selectedId = regionId;
@@ -219,15 +254,16 @@ function focusRegion(regionId) {
 }
 
 function popupHtml(row) {
-  return `
-    <h2 class="popup-title">${escapeHtml(row.display_name)}</h2>
-    <dl class="popup-meta">
-      <div>체감온도: <strong>${formatTemp(row.apparent_temp_c)}</strong></div>
-      <div>상태: <strong>${escapeHtml(levelLabel(row.heat_level))}</strong></div>
-      <div>작업자: <strong>${escapeHtml(row.user_id || "-")}</strong></div>
-      <div>관측: <strong>${formatTime(row.observed_at)}</strong></div>
-    </dl>
-  `;
+  return (
+    "<h2 class=\"popup-title\">" + escapeHtml(row.display_name) + "</h2>" +
+    "<dl class=\"popup-meta\">" +
+    "<div>체감온도: <strong>" + formatTemp(row.apparent_temp_c) + "</strong></div>" +
+    "<div>단계: <strong>" + escapeHtml(levelLabel(row.heat_level)) + "</strong></div>" +
+    "<div>조치: <strong>" + escapeHtml(row.heat_message || actionLabel(row.heat_level)) + "</strong></div>" +
+    "<div>작업자: <strong>" + escapeHtml(row.user_id || "-") + "</strong></div>" +
+    "<div>관측: <strong>" + formatTime(row.observed_at) + "</strong></div>" +
+    "</dl>"
+  );
 }
 
 function updateSummary() {
@@ -236,65 +272,97 @@ function updateSummary() {
     .filter(Boolean)
     .sort()
     .at(-1);
-  const alerts = state.rows.filter((row) => HEAT_LEVELS.has(row.heat_level)).length;
+  const alerts = state.rows.filter((row) => severity(row.heat_level) > 0).length;
 
   lastUpdated.textContent = updated ? formatTime(updated) : "대기 중";
   alertCount.textContent = String(alerts);
 }
 
-function triggerHeatAlarms() {
-  const hotRows = state.rows.filter((row) => HEAT_LEVELS.has(row.heat_level));
-  if (hotRows.length === 0) return;
-
-  const top = hotRows[0];
-  notify("온열질환 기준 도달", `${top.display_name} ${levelLabel(top.heat_level)} ${formatTemp(top.apparent_temp_c)}`);
-}
-
-async function notify(title, body) {
-  showToast(`${title}: ${body}`);
-
-  if ("Notification" in window && Notification.permission === "default") {
-    await Notification.requestPermission();
-  }
-
-  if ("Notification" in window && Notification.permission === "granted") {
-    new Notification(title, { body });
-  }
-
-  playAlarm();
-}
-
-function playAlarm() {
-  if (!state.audioReady) {
-    state.pendingVisitAlarm = true;
+async function updatePushUi() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    pushButton.disabled = true;
+    pushStatus.textContent = "이 브라우저는 푸시 알림을 지원하지 않습니다.";
     return;
   }
-  const context = new AudioContext();
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
 
-  oscillator.type = "sine";
-  oscillator.frequency.setValueAtTime(880, context.currentTime);
-  oscillator.frequency.setValueAtTime(660, context.currentTime + 0.16);
-  gain.gain.setValueAtTime(0.0001, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.42);
-
-  oscillator.connect(gain);
-  gain.connect(context.destination);
-  oscillator.start();
-  oscillator.stop(context.currentTime + 0.45);
+  try {
+    const registration = await navigator.serviceWorker.register("./sw.js");
+    const subscription = await registration.pushManager.getSubscription();
+    pushButton.textContent = subscription ? "알림 끄기" : "알림 받기";
+    pushStatus.textContent = subscription
+      ? "온열 단계 상승 시 휴대폰으로 알림을 받습니다."
+      : "33℃ 이상 단계 상승 시 휴대폰 알림을 받을 수 있습니다.";
+  } catch (error) {
+    console.warn(error);
+    pushStatus.textContent = "알림 기능을 초기화하지 못했습니다.";
+  }
 }
 
-function showToast(message) {
-  toast.textContent = message;
-  toast.classList.add("show");
-  clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => toast.classList.remove("show"), 4400);
+async function togglePushSubscription() {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const current = await registration.pushManager.getSubscription();
+
+    if (current) {
+      await client.functions.invoke("cn-weather-push", {
+        body: { action: "unsubscribe", endpoint: current.endpoint },
+      });
+      await current.unsubscribe();
+      showToast("온열질환 푸시 알림을 해제했습니다.");
+      await updatePushUi();
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      showToast("휴대폰/브라우저에서 알림 권한을 허용해 주세요.");
+      return;
+    }
+
+    const { data, error } = await client.functions.invoke("cn-weather-push", {
+      body: { action: "public-key" },
+    });
+    if (error || !data?.publicKey) {
+      throw new Error(error?.message || "VAPID 공개키를 가져오지 못했습니다.");
+    }
+
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(data.publicKey),
+    });
+
+    const json = subscription.toJSON();
+    const { error: saveError } = await client.functions.invoke("cn-weather-push", {
+      body: {
+        action: "subscribe",
+        endpoint: json.endpoint,
+        keys: json.keys,
+        user_id: userIdInput.value.trim() || null,
+      },
+    });
+    if (saveError) throw saveError;
+
+    showToast("온열질환 푸시 알림이 등록됐습니다.");
+    await updatePushUi();
+  } catch (error) {
+    console.error(error);
+    showToast("알림 설정 실패: " + (error?.message || "알 수 없는 오류"));
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+function severity(level) {
+  return { normal: 0, interest: 0, caution: 1, warning: 2, danger: 3 }[level] ?? 0;
 }
 
 function formatTemp(value) {
-  return value === null || value === undefined ? "--.-도" : `${Number(value).toFixed(1)}도`;
+  return value === null || value === undefined ? "--.-℃" : Number(value).toFixed(1) + "℃";
 }
 
 function formatTime(value) {
@@ -310,11 +378,20 @@ function formatTime(value) {
 function levelLabel(level) {
   return {
     normal: "정상",
-    interest: "관심",
-    caution: "주의",
-    warning: "경고",
-    danger: "위험",
+    interest: "정상",
+    caution: "폭염주의",
+    warning: "폭염경보",
+    danger: "폭염중대경보",
   }[level] || "정상";
+}
+
+function actionLabel(level) {
+  return {
+    normal: "기본 폭염예방수칙 준수",
+    caution: "작업시간대 조정 또는 옥외작업 단축",
+    warning: "14~17시 옥외작업 중지",
+    danger: "긴급조치 작업 외 옥외작업 중지",
+  }[level] || "기본 폭염예방수칙 준수";
 }
 
 function escapeHtml(value) {
@@ -324,4 +401,11 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.add("show");
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => toast.classList.remove("show"), 4400);
 }

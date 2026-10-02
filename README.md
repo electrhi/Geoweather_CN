@@ -1,38 +1,106 @@
 # Geoweather_CN
 
-대전, 세종, 충남의 작업 권역별 체감온도를 지도와 표로 보여주는 정적 웹앱입니다. Supabase 프로젝트 `ijuxerhjqmrpjwgsfuqk`와 연결되어 있습니다.
+충청남도·대전광역시·세종특별자치시의 **시/군/구 단위 온열질환 관제 웹앱**입니다.
 
-## 기능
+기상청 초단기실황의 기온·습도·풍속을 수집하고, 기상청 여름철 체감온도 산출 방식으로 체감온도를 계산한 뒤 고용노동부 온열질환 대응 기준에 따라 상태를 표시합니다.
 
-- 대전 동구/중구는 `대전직할`, 서구는 `서대전`, 대덕구/유성구는 `대덕유성`으로 묶습니다.
-- 세종과 충남은 시/군 단위로 표시합니다.
-- 지도에는 권역명과 기상청 기준 체감온도를 함께 표시합니다.
-- 왼쪽 표에는 지명, 체감온도, 작업자 `user_id`를 표시합니다.
-- Supabase Edge Function이 기상청 초단기실황 값을 가져와 30분마다 갱신 요청을 받습니다.
-- 온열질환 기준 단계에 도달하거나 사이트 접속이 발생하면 브라우저 알림과 소리 알람을 보냅니다.
+## 관제 범위
 
-## 파일
+- 대전광역시: 동구, 중구, 서구, 유성구, 대덕구
+- 세종특별자치시: 세종시
+- 충청남도: 천안시, 공주시, 보령시, 아산시, 서산시, 논산시, 계룡시, 당진시, 금산군, 부여군, 서천군, 청양군, 홍성군, 예산군, 태안군
 
-- `index.html`: 앱 진입점
-- `styles.css`: 화면 스타일
-- `app.js`: 지도, Supabase, 알림 로직
-- `supabase/migrations/20260610000000_cn_weather_schema.sql`: 테이블, 뷰, RLS, 권역 초기 데이터
-- `supabase/migrations/20260610001000_cn_weather_security_tightening.sql`: RLS 정책과 view 보안 옵션 보강
-- `supabase/functions/cn-weather-refresh/index.ts`: 기상청 업데이트 Edge Function
+지도 경계는 `southkorea/southkorea-maps`의 시군구 TopoJSON을 불러와 표시합니다. 천안시는 동남구와 서북구 경계를 합쳐 하나의 천안시 권역으로 보여줍니다.
 
-## Supabase 설정
+## 온열질환 기준
 
-마이그레이션은 다음 테이블과 뷰를 만듭니다.
+현재 경보 기준은 다음과 같습니다.
 
-- `cn_weather_regions`
-- `cn_weather_readings`
-- `cn_weather_assignments`
-- `cn_weather_visit_events`
-- `cn_weather_alert_events`
-- `cn_weather_dashboard`
+- 33℃ 이상: 폭염주의 — 작업시간대 조정 또는 옥외작업 단축
+- 35℃ 이상: 폭염경보 — 14~17시 옥외작업 중지
+- 38℃ 이상: 폭염중대경보 — 긴급조치 작업 외 옥외작업 중지
 
-Edge Function에는 기상청 공공데이터포털 단기예보 조회서비스 키를 `KMA_SERVICE_KEY` 이름으로 등록해야 실제 관측값이 갱신됩니다.
+알림은 같은 단계에서 반복해서 보내지 않고, **정상→주의, 주의→경보, 경보→중대경보처럼 단계가 상승할 때만** 발송합니다.
 
-## 실행
+## 체감온도
 
-이 앱은 정적 파일이므로 `index.html`을 브라우저로 열거나 로컬 정적 서버로 실행하면 됩니다. 현재 작업 환경에서는 `http://localhost:8080`에서 확인할 수 있습니다. CDN을 사용하므로 인터넷 연결이 필요합니다.
+기상청 초단기실황 API에서 다음 항목을 사용합니다.
+
+- `T1H`: 기온
+- `REH`: 상대습도
+- `WSD`: 풍속(화면/원자료 저장)
+
+체감온도는 기상청 여름철 체감온도 방식에 맞춰 Stull 습구온도 근사식과 기상청 보정식을 사용합니다.
+
+## 주요 파일
+
+- `index.html`: 관제 화면
+- `styles.css`: PC/모바일 화면 스타일
+- `app.js`: 지도, Supabase 조회, 작업자 배정, Push 구독
+- `sw.js`: Web Push 서비스 워커
+- `supabase/functions/cn-weather-refresh/index.ts`: 기상청 수집, 체감온도 계산, 단계 판정
+- `supabase/functions/cn-weather-push/index.ts`: Push 구독 관리 및 경보 발송
+- `supabase/migrations/20261002000000_city_county_heat_alerts.sql`: 대전 5개 구 분리 및 Push 구독 테이블
+- `.github/workflows/cn-weather-refresh.yml`: 15분 자동 갱신
+
+## Supabase 배포
+
+기존 Supabase 프로젝트는 `ijuxerhjqmrpjwgsfuqk`입니다.
+
+먼저 마이그레이션을 적용하고 두 Edge Function을 배포합니다.
+
+```bash
+supabase db push
+
+supabase functions deploy cn-weather-refresh
+supabase functions deploy cn-weather-push
+```
+
+### 필요한 Edge Function Secret
+
+기상청 API:
+
+```text
+KMA_SERVICE_KEY=공공데이터포털_서비스키
+```
+
+Web Push:
+
+```text
+VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:관리자메일주소
+```
+
+VAPID 키는 예를 들어 `web-push generate-vapid-keys`로 생성할 수 있습니다.
+
+## 15분 자동 갱신
+
+GitHub Actions의 `.github/workflows/cn-weather-refresh.yml`이 15분마다 `cn-weather-refresh` Edge Function을 호출합니다.
+
+Repository Settings → Secrets and variables → Actions에 다음 Secret을 등록해야 합니다.
+
+```text
+SUPABASE_ANON_KEY
+```
+
+이 값은 현재 웹앱에서 사용하는 Supabase anon key와 동일한 키입니다.
+
+GitHub Actions의 스케줄은 정확히 매 15분 정각을 보장하지는 않지만, 서버 측에서 페이지 접속 여부와 무관하게 반복 호출됩니다. 더 엄격한 실행주기가 필요하면 Supabase Cron/Scheduled Functions로 동일 함수를 15분마다 호출해도 됩니다.
+
+## 휴대폰 Push 알림
+
+HTTPS로 배포된 사이트에서 **알림 받기** 버튼을 누르면 브라우저 Push 구독이 저장됩니다.
+
+지원 대상:
+
+- Android Chrome 계열: 일반 Web Push 지원
+- iPhone/iPad: 홈 화면에 추가한 웹앱(PWA) 환경에서 Web Push 사용 권장
+
+사이트가 닫혀 있어도 Push 구독과 서비스 워커가 정상 등록되어 있으면 단계 상승 시 알림을 받을 수 있습니다.
+
+## 주의사항
+
+- 시·군·구별 값은 각 권역의 대표 기상청 격자 관측값입니다. 한 시·군 내부 모든 지점의 미세기후를 의미하지 않습니다.
+- 폭염 단계 판단용 체감온도와 현장 실제 체감환경은 작업장 일사, 복사열, 통풍, 작업강도 등에 따라 달라질 수 있습니다.
+- 안전조치는 최신 고용노동부 지침과 사업장 위험성평가를 함께 적용해야 합니다.
