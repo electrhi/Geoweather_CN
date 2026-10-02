@@ -1,0 +1,21 @@
+name: Refresh CN weather
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke Supabase weather refresh
+        env:
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "SUPABASE_ANON_KEY repository secret is required."
+            exit 1
+          fi
+
+          curl --fail-with-body             --request POST             --url "https://ijuxerhjqmrpjwgsfuqk.supabase.co/functions/v1/cn-weather-refresh"             --header "Authorization: Bearer $SUPABASE_ANON_KEY"             --header "apikey: $SUPABASE_ANON_KEY"             --header "Content-Type: application/json"             --data '{}'
