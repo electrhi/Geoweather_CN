@@ -9,8 +9,6 @@ self.addEventListener("push", (event) => {
   const title = data.title || "충남권 온열질환 알림";
   const options = {
     body: data.body || "체감온도 단계가 상승했습니다.",
-    icon: "./icon-192.png",
-    badge: "./icon-192.png",
     tag: data.data?.region_id ? "heat-" + data.data.region_id : "heat-alert",
     renotify: true,
     data: { url: data.url || "./" },
